@@ -94,6 +94,7 @@ final class Word {
         timesWrong = backup.timesWrong
         setSRS(backup.articleSrs, for: .article)
         setSRS(backup.pluralSrs, for: .plural)
+        applyStreaks(from: backup)
     }
 
     var article: Article? {
@@ -200,7 +201,29 @@ final class Word {
     var backup: BackupWord {
         BackupWord(entry: entry, createdAt: createdAt, updatedAt: updatedAt, srs: srs(for: .translation),
                    articleSrs: srs(for: .article), pluralSrs: srs(for: .plural),
-                   timesCorrect: timesCorrect, timesWrong: timesWrong)
+                   streaks: trackedStreaks, timesCorrect: timesCorrect, timesWrong: timesWrong)
+    }
+
+    /// Only streaks actually recorded; untracked ones stay out of the backup.
+    private var trackedStreaks: [StudyArea: Int] {
+        var streaks: [StudyArea: Int] = [:]
+        for area in StudyArea.allCases {
+            let stored: Int
+            switch area {
+            case .translation: stored = translationStreak
+            case .article: stored = articleStreak
+            case .plural: stored = pluralStreak
+            }
+            if stored >= 0 { streaks[area] = stored }
+        }
+        return streaks
+    }
+
+    /// Unknown streaks go back to "not tracked", so the schedules stand in.
+    private func applyStreaks(from backup: BackupWord) {
+        for area in StudyArea.allCases {
+            setStreak(backup.streak(for: area) ?? -1, for: area)
+        }
     }
 
     /// Edits the vocabulary fields, keeping identity and learning history.
@@ -223,6 +246,7 @@ final class Word {
         setSRS(backup.srs, for: .translation)
         setSRS(backup.articleSrs, for: .article)
         setSRS(backup.pluralSrs, for: .plural)
+        applyStreaks(from: backup)
         timesCorrect = backup.timesCorrect
         timesWrong = backup.timesWrong
     }

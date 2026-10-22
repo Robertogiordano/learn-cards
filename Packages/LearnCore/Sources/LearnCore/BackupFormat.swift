@@ -16,6 +16,9 @@ public struct BackupWord: Codable, Hashable, Sendable {
     public var srs: SRSState
     public var articleSrs: SRSState
     public var pluralSrs: SRSState
+    /// Right answers in a row per area (keyed by `StudyArea.rawValue`), which drive the
+    /// path's percentages. Absent in older backups: the schedules' repetitions stand in.
+    public var streaks: [String: Int]
     public var timesCorrect: Int
     public var timesWrong: Int
 
@@ -26,6 +29,7 @@ public struct BackupWord: Codable, Hashable, Sendable {
         srs: SRSState,
         articleSrs: SRSState? = nil,
         pluralSrs: SRSState? = nil,
+        streaks: [StudyArea: Int] = [:],
         timesCorrect: Int = 0,
         timesWrong: Int = 0
     ) {
@@ -42,13 +46,14 @@ public struct BackupWord: Codable, Hashable, Sendable {
         self.srs = srs
         self.articleSrs = articleSrs ?? .new(now: createdAt)
         self.pluralSrs = pluralSrs ?? .new(now: createdAt)
+        self.streaks = Dictionary(uniqueKeysWithValues: streaks.map { ($0.key.rawValue, $0.value) })
         self.timesCorrect = timesCorrect
         self.timesWrong = timesWrong
     }
 
     enum CodingKeys: String, CodingKey {
         case id, german, article, plural, english, partOfSpeech, emoji, category
-        case createdAt, updatedAt, srs, articleSrs, pluralSrs, timesCorrect, timesWrong
+        case createdAt, updatedAt, srs, articleSrs, pluralSrs, streaks, timesCorrect, timesWrong
     }
 
     /// Fields added in schema v2 are optional so v1 backups still load.
@@ -67,6 +72,7 @@ public struct BackupWord: Codable, Hashable, Sendable {
         srs = try container.decode(SRSState.self, forKey: .srs)
         articleSrs = try container.decodeIfPresent(SRSState.self, forKey: .articleSrs) ?? .new(now: createdAt)
         pluralSrs = try container.decodeIfPresent(SRSState.self, forKey: .pluralSrs) ?? .new(now: createdAt)
+        streaks = try container.decodeIfPresent([String: Int].self, forKey: .streaks) ?? [:]
         timesCorrect = try container.decodeIfPresent(Int.self, forKey: .timesCorrect) ?? 0
         timesWrong = try container.decodeIfPresent(Int.self, forKey: .timesWrong) ?? 0
     }
@@ -77,6 +83,11 @@ public struct BackupWord: Codable, Hashable, Sendable {
     }
 
     public var dedupeKey: String { VocabEntry.dedupeKey(german: german, article: article) }
+
+    /// Right answers in a row in an area, nil when the backup does not know it.
+    public func streak(for area: StudyArea) -> Int? {
+        streaks[area.rawValue]
+    }
 
     /// Most recent edit or review in any area: decides which copy wins when merging.
     public var lastActivity: Date {

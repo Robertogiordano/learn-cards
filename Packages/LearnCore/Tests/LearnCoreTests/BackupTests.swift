@@ -59,7 +59,21 @@ final class BackupTests: XCTestCase {
         XCTAssertEqual(word.category, VocabEntry.defaultCategory)
         XCTAssertEqual(word.srs.repetitions, 2)
         XCTAssertTrue(word.articleSrs.isNew)
-        XCTAssertTrue(word.pluralSrs.isNew)
+        XCTAssertTrue(word.pluralSrs.isNew)        XCTAssertNil(word.streak(for: .translation))
+    }
+
+    func testRoundTripKeepsStreaks() throws {
+        let original = BackupWord(
+            entry: VocabEntry(german: "Brot", article: .das, plural: "Brote", english: ["bread"], partOfSpeech: .noun),
+            createdAt: base,
+            updatedAt: base,
+            srs: .new(now: base),
+            streaks: [.translation: 3, .article: 0]
+        )
+        let decoded = try XCTUnwrap(BackupCodec.decode(BackupCodec.encode(Backup(exportedAt: base, words: [original]))).words.first)
+        XCTAssertEqual(decoded.streak(for: .translation), 3)
+        XCTAssertEqual(decoded.streak(for: .article), 0)
+        XCTAssertNil(decoded.streak(for: .plural))
     }
 
     func testRejectsFutureVersion() throws {

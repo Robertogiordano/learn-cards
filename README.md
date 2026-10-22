@@ -64,7 +64,7 @@ App/
 
 ## Backup
 
-Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi e i progressi di ripasso delle tre aree, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
+Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste che muovono le percentuali del percorso, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
 
 L'import offre due modalità:
 
