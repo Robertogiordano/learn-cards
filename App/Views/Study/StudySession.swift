@@ -14,74 +14,111 @@ struct AnswerFeedback {
     var recheck: AnswerRecheck?
 }
 
-/// Drives one study session in one area: queue, grading, spaced-repetition updates.
+/// How the session picks the kind of exercise for each question.
+enum KindPolicy {
+    /// Free practice: one kind, or a random one of the area's kinds when nil.
+    case fixed(ExerciseKind?)
+    /// Path: from multiple choice to typing to speaking as the word is learned.
+    case adaptive
+}
+
+/// A star (theme + area) gained during a session.
+struct EarnedStar: Hashable {
+    let theme: String
+    let area: StudyArea
+}
+
+/// Drives one study session over (word, area) items: queue, grading, spaced-repetition updates.
 @MainActor
 final class StudySession: ObservableObject, Identifiable {
     @Published private(set) var exercise: Exercise?
     @Published private(set) var feedback: AnswerFeedback?
     @Published private(set) var isFinished = false
     @Published private(set) var results: [Verdict: Int] = [:]
+    /// True on the first question of the bonus part, to announce it.
+    @Published private(set) var isBonusStart = false
+    @Published private(set) var isInBonus = false
 
-    let area: StudyArea
     let total: Int
     /// Existing themes, offered when editing a word from the session.
     let themes: [String]
 
-    private let mode: ExerciseKind?
+    private let kindPolicy: KindPolicy
     private let allowSpeaking: Bool
     private let context: ModelContext
     private let wordsByID: [UUID: Word]
     private let pool: [VocabEntry]
-    private var queue: [UUID]
-    private var graded: Set<UUID> = []
+    private let bonusItems: Set<StudyItem>
+    private let starsBefore: Set<EarnedStar>
+    private var queue: [StudyItem]
+    private var current: StudyItem?
+    private var hasShownBonus = false
+    private var graded: Set<StudyItem> = []
     /// State before the last first-attempt grading, so "I was right" can redo it.
-    private var snapshot: (wordID: UUID, srs: SRSState, timesCorrect: Int, timesWrong: Int)?
+    private var snapshot: (item: StudyItem, srs: SRSState, timesCorrect: Int, timesWrong: Int)?
     private var shownAt = Date()
     private var rng = SystemRandomNumberGenerator()
 
     var completed: Int { graded.count }
 
-    /// `allWords` is the whole vocabulary, used for multiple-choice distractors.
-    init(wordIDs: [UUID], allWords: [Word], area: StudyArea, mode: ExerciseKind?, allowSpeaking: Bool, context: ModelContext) {
+    /// `allWords` is the whole vocabulary, used for multiple-choice distractors and stars.
+    /// Items from index `bonusFrom` on form the bonus part.
+    init(
+        items: [StudyItem],
+        bonusFrom: Int? = nil,
+        allWords: [Word],
+        kindPolicy: KindPolicy,
+        allowSpeaking: Bool,
+        context: ModelContext
+    ) {
         let wordsByID = Dictionary(allWords.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.wordsByID = wordsByID
         pool = allWords.map(\.entry)
         themes = allWords.categories
-        queue = wordIDs.filter { wordsByID[$0] != nil }
-        total = queue.count
-        self.area = area
-        self.mode = mode
+        let valid = items.filter { wordsByID[$0.wordID] != nil }
+        queue = valid
+        total = valid.count
+        bonusItems = bonusFrom.map { Set(items.dropFirst($0)) } ?? []
+        starsBefore = Self.stars(of: allWords)
+        self.kindPolicy = kindPolicy
         self.allowSpeaking = allowSpeaking
         self.context = context
         advance()
     }
 
+    /// Stars lit by this session, for the summary.
+    var earnedStars: [EarnedStar] {
+        Self.stars(of: Array(wordsByID.values))
+            .subtracting(starsBefore)
+            .sorted { ($0.theme, $0.area.rawValue) < ($1.theme, $1.area.rawValue) }
+    }
+
     func submit(_ verdict: Verdict, given: String, recheck: AnswerRecheck? = nil) {
-        guard let exercise, feedback == nil, let word = wordsByID[exercise.entry.id] else { return }
+        guard let exercise, let current, feedback == nil, let word = wordsByID[current.wordID] else { return }
 
         // Only the first attempt counts; repeats after a mistake are practice.
-        if !graded.contains(word.id) {
-            snapshot = (word.id, word.srs(for: area), word.timesCorrect, word.timesWrong)
-            record(verdict, for: word, kind: exercise.kind)
-            graded.insert(word.id)
+        if !graded.contains(current) {
+            snapshot = (current, word.srs(for: current.area), word.timesCorrect, word.timesWrong)
+            record(verdict, for: word, area: current.area, kind: exercise.kind)
+            graded.insert(current)
             results[verdict, default: 0] += 1
         }
         if verdict == .wrong {
-            queue.append(word.id)
+            queue.append(current)
         }
         feedback = AnswerFeedback(verdict: verdict, given: given, recheck: recheck)
     }
 
     /// The learner says the answer was right (synonym, recognizer mistake, ...).
     func overrideAsCorrect() {
-        guard let current = feedback, current.verdict != .correct else { return }
+        guard let feedback, feedback.verdict != .correct else { return }
         regrade(to: .correct)
-        feedback?.overridden = true
+        self.feedback?.overridden = true
     }
 
     /// The extraction got the gender wrong: fix the word, then grade the answer again against it.
     func correctArticle(to article: Article) {
-        guard let exercise, let current = feedback, let word = wordsByID[exercise.entry.id],
+        guard let exercise, let answer = feedback, let word = wordsByID[exercise.entry.id],
               word.article != article else { return }
         var entry = word.entry
         entry.article = article
@@ -89,7 +126,7 @@ final class StudySession: ObservableObject, Identifiable {
         try? context.save()
 
         self.exercise = exercise.withEntry(entry)
-        regrade(to: current.recheck?(entry) ?? current.verdict)
+        regrade(to: answer.recheck?(entry) ?? answer.verdict)
         feedback?.correctedArticle = article
     }
 
@@ -102,25 +139,25 @@ final class StudySession: ObservableObject, Identifiable {
 
     /// Replaces the current verdict, redoing the spaced-repetition update from the snapshot.
     private func regrade(to verdict: Verdict) {
-        guard let exercise, let current = feedback, let word = wordsByID[exercise.entry.id],
-              verdict != current.verdict else { return }
+        guard let exercise, let current, let feedback, let word = wordsByID[current.wordID],
+              verdict != feedback.verdict else { return }
 
         // Only wrong answers sit at the back of the queue.
-        if current.verdict == .wrong, let index = queue.lastIndex(of: word.id) {
+        if feedback.verdict == .wrong, let index = queue.lastIndex(of: current) {
             queue.remove(at: index)
         }
         if verdict == .wrong {
-            queue.append(word.id)
+            queue.append(current)
         }
-        if let snapshot, snapshot.wordID == word.id {
-            word.setSRS(snapshot.srs, for: area)
+        if let snapshot, snapshot.item == current {
+            word.setSRS(snapshot.srs, for: current.area)
             word.timesCorrect = snapshot.timesCorrect
             word.timesWrong = snapshot.timesWrong
-            record(verdict, for: word, kind: exercise.kind)
-            results[current.verdict, default: 0] -= 1
+            record(verdict, for: word, area: current.area, kind: exercise.kind)
+            results[feedback.verdict, default: 0] -= 1
             results[verdict, default: 0] += 1
         }
-        feedback?.verdict = verdict
+        self.feedback?.verdict = verdict
     }
 
     func advance() {
@@ -128,19 +165,25 @@ final class StudySession: ObservableObject, Identifiable {
         snapshot = nil
         guard !queue.isEmpty else {
             exercise = nil
+            current = nil
             isFinished = true
             return
         }
-        let id = queue.removeFirst()
-        guard let word = wordsByID[id] else {
+        let item = queue.removeFirst()
+        guard let word = wordsByID[item.wordID] else {
             advance()
             return
         }
-        exercise = ExerciseBuilder.make(area: area, kind: mode ?? randomKind(), entry: word.entry, pool: pool, using: &rng)
+        current = item
+        isInBonus = bonusItems.contains(item)
+        isBonusStart = isInBonus && !hasShownBonus
+        if isInBonus { hasShownBonus = true }
+        exercise = ExerciseBuilder.make(area: item.area, kind: kind(for: item, word: word),
+                                        entry: word.entry, pool: pool, using: &rng)
         shownAt = Date()
     }
 
-    private func record(_ verdict: Verdict, for word: Word, kind: ExerciseKind) {
+    private func record(_ verdict: Verdict, for word: Word, area: StudyArea, kind: ExerciseKind) {
         let now = Date()
         // Extra practice on words that are not due yet must not push their schedule around.
         let state = word.srs(for: area)
@@ -156,8 +199,26 @@ final class StudySession: ObservableObject, Identifiable {
         try? context.save()
     }
 
-    private func randomKind() -> ExerciseKind {
-        let kinds = area.kinds.filter { allowSpeaking || $0 != .speakGerman }
-        return kinds.randomElement(using: &rng) ?? .multipleChoice
+    private func kind(for item: StudyItem, word: Word) -> ExerciseKind {
+        switch kindPolicy {
+        case .fixed(let kind?):
+            return kind
+        case .fixed(nil):
+            let kinds = item.area.kinds.filter { allowSpeaking || $0 != .speakGerman }
+            return kinds.randomElement(using: &rng) ?? .multipleChoice
+        case .adaptive:
+            return PathPlanner.kind(for: word.srs(for: item.area), area: item.area,
+                                    allowSpeaking: allowSpeaking, using: &rng)
+        }
+    }
+
+    private static func stars(of words: [Word]) -> Set<EarnedStar> {
+        var stars = Set<EarnedStar>()
+        for progress in PathPlanner.themeProgress(words.map(\.pathWord)) {
+            for area in StudyArea.allCases where progress.hasStar(area) {
+                stars.insert(EarnedStar(theme: progress.theme, area: area))
+            }
+        }
+        return stars
     }
 }

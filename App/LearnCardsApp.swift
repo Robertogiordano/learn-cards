@@ -14,7 +14,7 @@ struct LearnCardsApp: App {
 struct RootView: View {
     var body: some View {
         TabView {
-            StudyHomeView()
+            PathView()
                 .tabItem { Label("Studia", systemImage: "graduationcap") }
             VocabularyView()
                 .tabItem { Label("Vocabolario", systemImage: "books.vertical") }

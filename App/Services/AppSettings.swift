@@ -9,6 +9,8 @@ enum SettingsKey {
     static let excludedThemes = "excludedThemes"
     static let studyMode = "studyMode"
     static let sessionSize = "sessionSize"
+    static let lessonNewWords = "lessonNewWords"
+    static let bonusSize = "bonusSize"
     static let speakingInMixed = "speakingInMixed"
     static let autoSpeak = "autoSpeak"
     static let lastExport = "lastExportDate"

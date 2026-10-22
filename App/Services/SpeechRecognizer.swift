@@ -15,6 +15,9 @@ final class SpeechRecognizer: ObservableObject {
     private var task: SFSpeechRecognitionTask?
     private var isFinished = false
 
+    static let permissionDeniedMessage =
+        "Per gli esercizi di pronuncia consenti microfono e riconoscimento vocale in Impostazioni > LearnCards."
+
     static func requestPermissions() async -> Bool {
         let status = await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
             SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }

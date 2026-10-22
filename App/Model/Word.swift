@@ -160,6 +160,15 @@ final class Word {
         StudyCandidate(id: id, srs: srs(for: area), createdAt: createdAt)
     }
 
+    /// The word as the guided path sees it: one schedule per area it takes part in.
+    var pathWord: PathWord {
+        var schedules: [StudyArea: SRSState] = [:]
+        for area in StudyArea.allCases where isApplicable(to: area) {
+            schedules[area] = srs(for: area)
+        }
+        return PathWord(id: id, category: category, createdAt: createdAt, schedules: schedules)
+    }
+
     var backup: BackupWord {
         BackupWord(entry: entry, createdAt: createdAt, updatedAt: updatedAt, srs: srs(for: .translation),
                    articleSrs: srs(for: .article), pluralSrs: srs(for: .plural),

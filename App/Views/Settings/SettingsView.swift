@@ -8,6 +8,8 @@ struct SettingsView: View {
     @Query private var words: [Word]
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
     @AppStorage(SettingsKey.sessionSize) private var sessionSize = 20
+    @AppStorage(SettingsKey.lessonNewWords) private var lessonNewWords = 8
+    @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @AppStorage(SettingsKey.autoSpeak) private var autoSpeak = true
     @AppStorage(SettingsKey.lastExport) private var lastExport: Double = 0
@@ -141,7 +143,9 @@ struct SettingsView: View {
 
     private var studySection: some View {
         Section("Studio") {
-            Stepper("Parole per sessione: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
+            Stepper("Parole nuove per lezione: \(lessonNewWords)", value: $lessonNewWords, in: 3...30)
+            Stepper("Domande bonus: \(bonusSize)", value: $bonusSize, in: 5...50, step: 5)
+            Stepper("Parole per sessione libera o tema: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
             Toggle("Pronuncia nel misto", isOn: $speakingInMixed)
             Toggle("Leggi ad alta voce la soluzione", isOn: $autoSpeak)
         }

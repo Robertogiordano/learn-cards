@@ -2,7 +2,8 @@ import LearnCore
 import SwiftData
 import SwiftUI
 
-struct StudyHomeView: View {
+/// Free practice: pick area, themes and kind of exercise by hand.
+struct FreePracticeView: View {
     @Environment(\.modelContext) private var context
     @Query private var words: [Word]
     @AppStorage(SettingsKey.area) private var areaRaw = StudyArea.translation.rawValue
@@ -39,19 +40,9 @@ struct StudyHomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if words.isEmpty {
-                    ContentUnavailableView(
-                        "Ancora nessuna parola",
-                        systemImage: "camera",
-                        description: Text("Fotografa una pagina di esercizi dalla scheda Aggiungi per iniziare.")
-                    )
-                } else {
-                    form
-                }
-            }
-            .navigationTitle("Studia")
+        form
+            .navigationTitle("Allenamento libero")
+            .navigationBarTitleDisplayMode(.inline)
             .fullScreenCover(item: $activeSession) { session in
                 SessionView(session: session)
             }
@@ -60,7 +51,6 @@ struct StudyHomeView: View {
             } message: {
                 Text(alertMessage ?? "")
             }
-        }
     }
 
     private var form: some View {
@@ -158,17 +148,16 @@ struct StudyHomeView: View {
             if mode == .speakGerman || (mode == .mixed && speakingInMixed) {
                 allowSpeaking = await SpeechRecognizer.requestPermissions()
                 if mode == .speakGerman && !allowSpeaking {
-                    alertMessage = "Per gli esercizi di pronuncia consenti microfono e riconoscimento vocale in Impostazioni > LearnCards."
+                    alertMessage = SpeechRecognizer.permissionDeniedMessage
                     return
                 }
             }
             let ids = SessionPlanner.select(candidates, now: .now, limit: sessionSize, includeNotDue: extra)
             guard !ids.isEmpty else { return }
             activeSession = StudySession(
-                wordIDs: ids,
+                items: ids.map { StudyItem(wordID: $0, area: area) },
                 allWords: words,
-                area: area,
-                mode: mode.kind,
+                kindPolicy: .fixed(mode.kind),
                 allowSpeaking: allowSpeaking,
                 context: context
             )

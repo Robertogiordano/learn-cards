@@ -44,6 +44,19 @@ struct ExerciseView: View {
 
     var body: some View {
         VStack(spacing: 24) {
+            if session.isBonusStart {
+                Label("Bonus: ripasso di tutto quello che hai visto", systemImage: "gift.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.accentColor))
+            } else if session.isInBonus {
+                Label("Bonus", systemImage: "gift")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.accentColor)
+            }
+
             PromptCard(exercise: exercise, isAnswered: isAnswered)
 
             switch exercise.kind {
@@ -278,6 +291,19 @@ struct SessionSummaryView: View {
             }
             .padding()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            let stars = session.earnedStars
+            if !stars.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Nuove stelle")
+                        .font(.headline)
+                    ForEach(stars, id: \.self) { star in
+                        Label("\(star.theme) · \(star.area.title)", systemImage: "star.fill")
+                            .foregroundStyle(star.area.color)
+                    }
+                }
+                .padding()
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
             Button("Fine", action: onDone)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
