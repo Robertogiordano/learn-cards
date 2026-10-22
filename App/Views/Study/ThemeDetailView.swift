@@ -11,6 +11,7 @@ struct ThemeDetailView: View {
     @AppStorage(SettingsKey.sessionSize) private var sessionSize = 20
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @State private var activeSession: StudySession?
+    @State private var alertMessage: String?
 
     private var themeWords: [Word] {
         words.filter { $0.category == theme }.sorted { $0.createdAt < $1.createdAt }
@@ -29,7 +30,7 @@ struct ThemeDetailView: View {
                     }
                 }
             } footer: {
-                Text("La stella si accende quando padroneggi l'80% delle parole: due risposte giuste di fila. Le parole nuove partono dalla scelta multipla, poi si scrivono e infine si pronunciano.")
+                Text("La stella si accende quando padroneggi l'80% delle parole: due risposte giuste di fila. Con \"Automatico\" le parole nuove partono dalla scelta multipla, poi si scrivono e infine si pronunciano; dal menu Allena puoi anche scegliere tu il tipo di esercizio.")
             }
 
             Section("Parole") {
@@ -42,6 +43,11 @@ struct ThemeDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
+        }
+        .alert("Attenzione", isPresented: Binding(isPresent: $alertMessage)) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage ?? "")
         }
     }
 
@@ -66,23 +72,48 @@ struct ThemeDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Allena") { start(area, words: words) }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                Menu {
+                    Button {
+                        start(area, words: words, policy: .adaptive)
+                    } label: {
+                        Label("Automatico (percorso)", systemImage: "wand.and.stars")
+                    }
+                    Divider()
+                    ForEach(StudyMode.available(in: area)) { mode in
+                        Button {
+                            start(area, words: words, policy: .fixed(mode.kind))
+                        } label: {
+                            Label(mode.title(in: area), systemImage: mode.systemImage)
+                        }
+                    }
+                } label: {
+                    Label("Allena", systemImage: "chevron.down")
+                        .labelStyle(.titleAndIcon)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             }
         }
         .padding(.vertical, 4)
     }
 
     /// Due reviews first, then new words, then the ones closest to being due.
-    private func start(_ area: StudyArea, words: [Word]) {
+    /// `policy` is automatic (by how well each word is known) or one chosen kind of exercise.
+    private func start(_ area: StudyArea, words: [Word], policy: KindPolicy) {
         let candidates = words.map { $0.candidate(for: area) }
+        let speakingOnly: Bool
+        if case .fixed(.speakGerman?) = policy { speakingOnly = true } else { speakingOnly = false }
         Task { @MainActor in
-            let allowSpeaking = speakingInMixed ? await SpeechRecognizer.requestPermissions() : false
+            let allowSpeaking = speakingOnly || speakingInMixed ? await SpeechRecognizer.requestPermissions() : false
+            if speakingOnly && !allowSpeaking {
+                alertMessage = SpeechRecognizer.permissionDeniedMessage
+                return
+            }
             let ids = SessionPlanner.select(candidates, now: .now, limit: sessionSize, includeNotDue: true)
             guard !ids.isEmpty else { return }
             activeSession = StudySession(items: ids.map { StudyItem(wordID: $0, area: area) }, allWords: self.words,
-                                         kindPolicy: .adaptive, allowSpeaking: allowSpeaking, context: context)
+                                         kindPolicy: policy, allowSpeaking: allowSpeaking, context: context)
         }
     }
 }

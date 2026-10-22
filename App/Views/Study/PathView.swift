@@ -52,6 +52,12 @@ struct PathView: View {
                     Label("Bonus · ripasso misto (\(bonusOnly))", systemImage: "gift")
                 }
                 .disabled(bonusOnly == 0)
+
+                NavigationLink {
+                    FreePracticeView()
+                } label: {
+                    Label("Allenamento libero: scegli area, temi ed esercizio", systemImage: "slider.horizontal.3")
+                }
             } footer: {
                 Text("Il bonus mescola tutto quello che hai già visto, in tutti i temi e gli esercizi: prima le parole da ripassare, poi quelle che sbagli più spesso.")
             }
@@ -64,16 +70,6 @@ struct PathView: View {
                         ThemeRow(progress: progress, emoji: emojis[progress.theme] ?? "📝")
                     }
                 }
-            }
-
-            Section {
-                NavigationLink {
-                    FreePracticeView()
-                } label: {
-                    Label("Allenamento libero", systemImage: "slider.horizontal.3")
-                }
-            } footer: {
-                Text("Scegli tu area, temi e tipo di esercizio.")
             }
         }
     }
