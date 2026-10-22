@@ -474,8 +474,8 @@ final class StudySession: ObservableObject, Identifiable {
 
     private func makeVerbQuestion(for verb: Verb) -> VerbQuestion {
         let entry = verb.entry
-        let kinds = VerbExerciseKind.allCases.filter { allowSpeaking || $0 != .speak }
-        let kind: VerbExerciseKind
+        let kinds = VerbExerciseKind.allCases.filter { allowSpeaking || !$0.isSpeaking }
+        var kind: VerbExerciseKind
         switch verbPolicy {
         case .adaptive:
             kind = VerbExercises.kind(level: verb.streak, allowSpeaking: allowSpeaking, using: &rng)
@@ -485,18 +485,28 @@ final class StudySession: ObservableObject, Identifiable {
             kind = chosen
         }
         let person = Person.allCases.randomElement(using: &rng) ?? .ich
-        return VerbQuestion(
-            kind: kind,
-            entry: entry,
-            person: person,
-            options: kind == .chooseForm ? VerbExercises.options(for: entry, person: person, using: &rng) : []
-        )
+        var options: [String] = []
+        switch kind {
+        case .chooseForm:
+            options = VerbExercises.options(for: entry, person: person, using: &rng)
+        case .translateChoice:
+            // Distractors come from all the session's verbs; with too few, type instead.
+            let pool = verbsByID.values.map(\.entry)
+            if let choices = VerbExercises.translationOptions(for: entry, pool: pool, using: &rng) {
+                options = choices
+            } else {
+                kind = .translateGerman
+            }
+        default:
+            break
+        }
+        return VerbQuestion(kind: kind, entry: entry, person: person, options: options)
     }
 
     private func recordVerb(_ verdict: Verdict, verb: Verb, kind: VerbExerciseKind) {
         let now = Date()
         if verb.srs.isDue(at: now) {
-            let recognition = kind == .chooseForm || kind == .whichPerson
+            let recognition = kind == .chooseForm || kind == .whichPerson || kind == .translateChoice
             let grade = ReviewGrade.from(verdict: verdict, kind: recognition ? .multipleChoice : .typeGerman,
                                          responseTime: now.timeIntervalSince(shownAt))
             verb.srs = SRS.review(verb.srs, grade: grade, now: now)

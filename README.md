@@ -39,9 +39,10 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
   - scrivi la forma;
   - tabella completa;
   - che persona è (le forme uguali, es. *macht* = er/ihr, valgono tutte);
-  - pronuncia "du fährst".
+  - pronuncia "du fährst";
+  - giochi di traduzione come per le parole: scegli il verbo tedesco, scrivi EN → DE (con o senza «sich»), scrivi DE → EN, pronuncia l'infinito.
 
-  Percentuale per esercizio, filtro per gruppo, modalità automatica, 2 verbi già visti in ogni Bonus, elenco e modifica in Vocabolario (**Parole | Frasi | Verbi**).
+  Percentuale per esercizio e per gruppo (Traduzione / Coniugazione), filtro per gruppo, modalità automatica, 2 verbi già visti in ogni Bonus, elenco e modifica in Vocabolario (**Parole | Frasi | Verbi**).
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 

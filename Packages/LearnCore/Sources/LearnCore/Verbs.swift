@@ -104,6 +104,14 @@ public enum VerbExerciseKind: String, CaseIterable, Codable, Hashable, Sendable 
     case whichPerson
     /// Person + infinitive, say pronoun and form.
     case speak
+    /// English prompt, pick the infinitive among four verbs.
+    case translateChoice
+    /// English prompt, type the infinitive.
+    case translateGerman
+    /// Infinitive shown, type the English meaning.
+    case translateEnglish
+    /// English prompt, say the infinitive.
+    case translateSpeak
 
     public var title: String {
         switch self {
@@ -112,8 +120,25 @@ public enum VerbExerciseKind: String, CaseIterable, Codable, Hashable, Sendable 
         case .fullTable: return "Tabella completa"
         case .whichPerson: return "Che persona è?"
         case .speak: return "Pronuncia"
+        case .translateChoice: return "Scegli il verbo"
+        case .translateGerman: return "Scrivi EN → DE"
+        case .translateEnglish: return "Scrivi DE → EN"
+        case .translateSpeak: return "Pronuncia il verbo"
         }
     }
+
+    /// Meaning games, as for words; the others train the present tense.
+    public var isTranslation: Bool {
+        switch self {
+        case .translateChoice, .translateGerman, .translateEnglish, .translateSpeak: return true
+        default: return false
+        }
+    }
+
+    public var isSpeaking: Bool { self == .speak || self == .translateSpeak }
+
+    public static var translationKinds: [VerbExerciseKind] { allCases.filter(\.isTranslation) }
+    public static var conjugationKinds: [VerbExerciseKind] { allCases.filter { !$0.isTranslation } }
 }
 
 public enum VerbExercises {
@@ -172,14 +197,64 @@ public enum VerbExercises {
 
     /// From recognising to producing: choose or recognise the person first, then type,
     /// then the full table or speaking.
+    /// Meaning first, then the present tense: choosing at level 0, typing at 1,
+    /// the full table and speaking later.
     public static func kind<R: RandomNumberGenerator>(level: Int, allowSpeaking: Bool, using rng: inout R) -> VerbExerciseKind {
         let candidates: [VerbExerciseKind]
         switch level {
-        case ...0: candidates = [.chooseForm, .whichPerson]
-        case 1: candidates = [.typeForm]
-        default: candidates = [.fullTable, .typeForm] + (allowSpeaking ? [.speak] : [])
+        case ...0: candidates = [.translateChoice, .chooseForm]
+        case 1: candidates = [.translateGerman, .translateEnglish, .typeForm, .whichPerson]
+        default:
+            candidates = [.fullTable, .typeForm, .translateGerman] + (allowSpeaking ? [.speak, .translateSpeak] : [])
         }
         return candidates.randomElement(using: &rng) ?? .typeForm
+    }
+
+    // MARK: - Translation games
+
+    /// The infinitive in German; "sich" in front of a reflexive verb may be left out (or added).
+    public static func checkTranslation(_ given: String, verb: VerbEntry) -> Verdict {
+        compareGerman(withoutSich(given), withoutSich(verb.infinitive))
+    }
+
+    /// The meaning in English: any of the alternatives, "to" optional, one typo is almost.
+    public static func checkEnglish(_ given: String, verb: VerbEntry) -> Verdict {
+        let accepted = verb.english.split(whereSeparator: { $0 == "/" || $0 == "," }).map(String.init)
+        return AnswerChecker.compareEnglish(given, accepted: accepted.isEmpty ? [verb.english] : accepted)
+    }
+
+    /// The infinitive said aloud: the best transcription wins.
+    public static func checkSpokenInfinitive(_ transcripts: [String], verb: VerbEntry) -> Verdict {
+        transcripts.map { checkTranslation($0, verb: verb) }.max() ?? .wrong
+    }
+
+    /// Four infinitives: the right one and other saved verbs, same group first.
+    /// nil when there are not enough verbs for a real choice.
+    public static func translationOptions<R: RandomNumberGenerator>(
+        for verb: VerbEntry,
+        pool: [VerbEntry],
+        using rng: inout R
+    ) -> [String]? {
+        let others = pool.filter { $0.dedupeKey != verb.dedupeKey }.shuffled(using: &rng)
+        let ordered = others.filter { $0.group == verb.group } + others.filter { $0.group != verb.group }
+        var keys: Set<String> = [verb.dedupeKey]
+        var distractors: [String] = []
+        for other in ordered where distractors.count < 3 && keys.insert(other.dedupeKey).inserted {
+            distractors.append(other.infinitive)
+        }
+        guard !distractors.isEmpty else { return nil }
+        var options = distractors + [verb.infinitive]
+        options.shuffle(using: &rng)
+        return options
+    }
+
+    private static func withoutSich(_ text: String) -> String {
+        let words = AnswerChecker.normalize(text).split(separator: " ")
+        return (words.first == "sich" ? words.dropFirst() : words[...]).joined(separator: " ")
+    }
+
+    private static func compareGerman(_ given: String, _ expected: String) -> Verdict {
+        PhraseChecker.check(given, accepted: [expected])
     }
 
     /// Per kind: average progress over the verbs (every kind applies to every verb).
@@ -193,9 +268,11 @@ public enum VerbExercises {
         return result
     }
 
-    public static func mastery(_ streaks: [[VerbExerciseKind: Int]]) -> Double {
-        let kinds = kindMastery(streaks)
-        return kinds.isEmpty ? 0 : kinds.values.reduce(0, +) / Double(kinds.count)
+    /// Average over all kinds, or over the given ones (translation / conjugation).
+    public static func mastery(_ streaks: [[VerbExerciseKind: Int]], kinds subset: [VerbExerciseKind]? = nil) -> Double {
+        let all = kindMastery(streaks)
+        let values = (subset ?? VerbExerciseKind.allCases).compactMap { all[$0] }
+        return values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
     }
 }
 

@@ -48,11 +48,59 @@ final class VerbTests: XCTestCase {
 
     func testKindByLevel() {
         var rng = SeededGenerator(state: 1)
-        for _ in 0..<20 {
-            XCTAssertTrue([.chooseForm, .whichPerson].contains(VerbExercises.kind(level: 0, allowSpeaking: true, using: &rng)))
-            XCTAssertEqual(VerbExercises.kind(level: 1, allowSpeaking: true, using: &rng), .typeForm)
-            XCTAssertNotEqual(VerbExercises.kind(level: 3, allowSpeaking: false, using: &rng), .speak)
+        var seen = Set<VerbExerciseKind>()
+        for _ in 0..<40 {
+            let first = VerbExercises.kind(level: 0, allowSpeaking: true, using: &rng)
+            XCTAssertTrue([.translateChoice, .chooseForm].contains(first))
+            let second = VerbExercises.kind(level: 1, allowSpeaking: true, using: &rng)
+            XCTAssertTrue([.translateGerman, .translateEnglish, .typeForm, .whichPerson].contains(second))
+            let later = VerbExercises.kind(level: 3, allowSpeaking: false, using: &rng)
+            XCTAssertFalse(later.isSpeaking)
+            seen.formUnion([first, second, later])
         }
+        XCTAssertTrue(seen.contains(.translateChoice))
+    }
+
+    func testTranslationChecks() {
+        let waschen = VerbEntry(infinitive: "sich waschen", english: "wash (oneself)", forms: aufstehen.forms, group: .reflexive)
+        XCTAssertEqual(VerbExercises.checkTranslation("fahren", verb: fahren), .correct)
+        XCTAssertEqual(VerbExercises.checkTranslation("Fahren", verb: fahren), .correct)
+        XCTAssertEqual(VerbExercises.checkTranslation("fahen", verb: fahren), .almost)
+        XCTAssertEqual(VerbExercises.checkTranslation("gehen", verb: fahren), .wrong)
+        XCTAssertEqual(VerbExercises.checkTranslation("waschen", verb: waschen), .correct)
+        XCTAssertEqual(VerbExercises.checkTranslation("sich waschen", verb: waschen), .correct)
+        XCTAssertEqual(VerbExercises.checkSpokenInfinitive(["Fahren."], verb: fahren), .correct)
+
+        let drive = VerbEntry(infinitive: "fahren", english: "drive / go", forms: fahren.forms)
+        XCTAssertEqual(VerbExercises.checkEnglish("to drive", verb: drive), .correct)
+        XCTAssertEqual(VerbExercises.checkEnglish("go", verb: drive), .correct)
+        XCTAssertEqual(VerbExercises.checkEnglish("drve", verb: drive), .almost)
+        XCTAssertEqual(VerbExercises.checkEnglish("walk", verb: drive), .wrong)
+    }
+
+    func testTranslationOptions() throws {
+        var rng = SeededGenerator(state: 3)
+        let pool = [
+            fahren, aufstehen,
+            VerbEntry(infinitive: "laufen", english: "run", forms: fahren.forms, group: .stemChanging),
+            VerbEntry(infinitive: "machen", english: "do", forms: fahren.forms, group: .regular),
+            VerbEntry(infinitive: "lesen", english: "read", forms: fahren.forms, group: .stemChanging),
+        ]
+        let options = try XCTUnwrap(VerbExercises.translationOptions(for: fahren, pool: pool, using: &rng))
+        XCTAssertEqual(options.count, 4)
+        XCTAssertEqual(Set(options).count, 4)
+        XCTAssertTrue(options.contains("fahren"))
+        // Same group comes first: both other stem-changing verbs are offered.
+        XCTAssertTrue(options.contains("laufen") && options.contains("lesen"))
+        XCTAssertNil(VerbExercises.translationOptions(for: fahren, pool: [fahren], using: &rng))
+    }
+
+    func testMasteryBySubset() {
+        let streaks: [[VerbExerciseKind: Int]] = [[.translateChoice: 2, .translateGerman: 2]]
+        XCTAssertEqual(VerbExercises.mastery(streaks, kinds: [.translateChoice, .translateGerman]), 1)
+        XCTAssertEqual(VerbExercises.mastery(streaks, kinds: VerbExerciseKind.conjugationKinds), 0)
+        XCTAssertEqual(VerbExercises.mastery(streaks), 2.0 / Double(VerbExerciseKind.allCases.count), accuracy: 0.0001)
+        XCTAssertEqual(VerbExerciseKind.translationKinds.count, 4)
     }
 
     func testMastery() {

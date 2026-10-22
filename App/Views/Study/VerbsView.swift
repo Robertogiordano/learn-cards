@@ -10,6 +10,10 @@ extension VerbExerciseKind {
         case .fullTable: return "tablecells"
         case .whichPerson: return "person.2"
         case .speak: return "mic"
+        case .translateChoice: return "square.grid.2x2.fill"
+        case .translateGerman: return "character.bubble"
+        case .translateEnglish: return "character.cursor.ibeam"
+        case .translateSpeak: return "waveform"
         }
     }
 }
@@ -105,21 +109,15 @@ struct VerbsView: View {
                     .tint(.verbs)
                     .controlSize(.large)
 
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                        ForEach(VerbExerciseKind.allCases, id: \.self) { kind in
-                            ExerciseTile(title: kind.title, systemImage: kind.systemImage,
-                                         value: kinds[kind] ?? 0, color: .verbs) {
-                                start(.fixed(kind), wantsSpeaking: kind == .speak)
-                            }
-                        }
-                        ExerciseTile(title: "Misto", systemImage: "shuffle", value: nil, color: .verbs) {
-                            start(.mixed, wantsSpeaking: speakingInMixed)
-                        }
+                    ExerciseTile(title: "Misto", systemImage: "shuffle", value: nil, color: .verbs) {
+                        start(.mixed, wantsSpeaking: speakingInMixed)
                     }
-                    .padding(.vertical, 6)
                 } footer: {
-                    Text("Ogni esercizio ha la sua percentuale: una risposta giusta vale metà verbo, due di fila il verbo intero. «Automatico» parte dallo scegliere la forma e arriva alla tabella completa e alla pronuncia.")
+                    Text("Ogni esercizio ha la sua percentuale: una risposta giusta vale metà verbo, due di fila il verbo intero. «Automatico» parte dal significato (scegli il verbo) e arriva alla tabella completa e alla pronuncia.")
                 }
+
+                tileSection("Traduzione", kinds: VerbExerciseKind.translationKinds, mastery: kinds, streaks: streaks)
+                tileSection("Coniugazione al presente", kinds: VerbExerciseKind.conjugationKinds, mastery: kinds, streaks: streaks)
             }
         }
         .listSectionSpacing(.compact)
@@ -132,6 +130,28 @@ struct VerbsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
+        }
+    }
+
+    private func tileSection(_ title: String, kinds: [VerbExerciseKind], mastery: [VerbExerciseKind: Double],
+                             streaks: [[VerbExerciseKind: Int]]) -> some View {
+        Section {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(kinds, id: \.self) { kind in
+                    ExerciseTile(title: kind.title, systemImage: kind.systemImage,
+                                 value: mastery[kind] ?? 0, color: .verbs) {
+                        start(.fixed(kind), wantsSpeaking: kind.isSpeaking)
+                    }
+                }
+            }
+            .padding(.vertical, 6)
+        } header: {
+            HStack {
+                Text(title)
+                Spacer()
+                Text("\(Int((VerbExercises.mastery(streaks, kinds: kinds) * 100).rounded()))%")
+                    .monospacedDigit()
+            }
         }
     }
 
@@ -175,7 +195,7 @@ struct VerbsView: View {
         let candidates = scoped.map(\.candidate)
         Task { @MainActor in
             let allowSpeaking = wantsSpeaking ? await SpeechRecognizer.requestPermissions() : false
-            if case .fixed(.speak) = policy, !allowSpeaking {
+            if case .fixed(let kind) = policy, kind.isSpeaking, !allowSpeaking {
                 alertMessage = SpeechRecognizer.permissionDeniedMessage
                 return
             }

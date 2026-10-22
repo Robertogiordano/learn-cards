@@ -13,7 +13,7 @@ struct VerbExerciseView: View {
         VStack(spacing: 24) {
             BonusBanner(session: session)
 
-            VerbPromptCard(question: question)
+            VerbPromptCard(question: question, isAnswered: isAnswered)
 
             switch question.kind {
             case .chooseForm:
@@ -45,6 +45,25 @@ struct VerbExerciseView: View {
                     session.submitVerb(VerbExercises.checkSpoken(transcripts, verb: verb, person: question.person),
                                        given: transcripts.first ?? "—")
                 }
+            case .translateChoice:
+                OptionGrid(options: question.options, correct: question.options.firstIndex(of: verb.infinitive),
+                           isAnswered: isAnswered) { index in
+                    let chosen = question.options[index]
+                    session.submitVerb(chosen == verb.infinitive ? .correct : .wrong, given: chosen)
+                }
+            case .translateGerman:
+                SingleAnswerField(placeholder: "Infinito in tedesco", isAnswered: isAnswered) { text in
+                    session.submitVerb(VerbExercises.checkTranslation(text, verb: verb), given: text)
+                }
+            case .translateEnglish:
+                SingleAnswerField(placeholder: "In inglese", isAnswered: isAnswered) { text in
+                    session.submitVerb(VerbExercises.checkEnglish(text, verb: verb), given: text)
+                }
+            case .translateSpeak:
+                SpeechAnswerView(hint: "Di' il verbo all'infinito", isAnswered: isAnswered) { transcripts in
+                    session.submitVerb(VerbExercises.checkSpokenInfinitive(transcripts, verb: verb),
+                                       given: transcripts.first ?? "—")
+                }
             }
 
             if let feedback = session.feedback {
@@ -62,6 +81,7 @@ struct VerbExerciseView: View {
 
 private struct VerbPromptCard: View {
     let question: VerbQuestion
+    let isAnswered: Bool
 
     private var verb: VerbEntry { question.entry }
 
@@ -72,6 +92,10 @@ private struct VerbPromptCard: View {
         case .fullTable: return "Coniuga per tutte le persone"
         case .whichPerson: return "A quale persona corrisponde?"
         case .speak: return "Di' pronome e verbo"
+        case .translateChoice: return "Scegli il verbo tedesco"
+        case .translateGerman: return "Scrivi il verbo in tedesco"
+        case .translateEnglish: return "Scrivi in inglese"
+        case .translateSpeak: return "Di' il verbo in tedesco"
         }
     }
 
@@ -80,9 +104,25 @@ private struct VerbPromptCard: View {
             Text(instruction)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(verb.emoji)
-                .font(.system(size: 52))
+            // The emoji would give the meaning away when it is the question.
+            if question.kind != .translateEnglish || isAnswered {
+                Text(verb.emoji)
+                    .font(.system(size: 52))
+            }
             switch question.kind {
+            case .translateChoice, .translateGerman, .translateSpeak:
+                Text(verb.english)
+                    .font(.title.bold())
+                    .multilineTextAlignment(.center)
+            case .translateEnglish:
+                Text(verb.infinitive)
+                    .font(.title.bold())
+                Button {
+                    Speaker.shared.speak(verb.infinitive)
+                } label: {
+                    Label("Ascolta", systemImage: "speaker.wave.2")
+                }
+                .buttonStyle(.bordered)
             case .whichPerson:
                 Text(question.form)
                     .font(.title.bold())
@@ -149,6 +189,42 @@ private struct OptionGrid: View {
         if index == correct || alsoCorrect.contains(index) { return .green.opacity(0.3) }
         if index == selected { return .red.opacity(0.3) }
         return Color(uiColor: .secondarySystemBackground)
+    }
+}
+
+/// A single answer field (translation games).
+private struct SingleAnswerField: View {
+    let placeholder: String
+    let isAnswered: Bool
+    let onSubmit: (String) -> Void
+
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 14) {
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.roundedBorder)
+                .font(.title3)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($isFocused)
+                .submitLabel(.done)
+                .onSubmit(submit)
+            if !isAnswered {
+                Button("Controlla", action: submit)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(text.trimmed.isEmpty)
+            }
+        }
+        .disabled(isAnswered)
+        .onAppear { isFocused = true }
+    }
+
+    private func submit() {
+        guard !isAnswered, !text.trimmed.isEmpty else { return }
+        isFocused = false
+        onSubmit(text.trimmed)
     }
 }
 
@@ -244,9 +320,15 @@ private struct VerbFeedbackPanel: View {
     }
 
     private var spoken: String {
-        question.kind == .fullTable
+        if question.kind.isTranslation { return verb.infinitive }
+        return question.kind == .fullTable
             ? Person.allCases.map { "\($0.pronoun) \(verb.form(for: $0))" }.joined(separator: ", ")
             : "\(question.person.pronoun) \(question.form)"
+    }
+
+    /// Choice games: the right option is already highlighted, no "I was right".
+    private var isChoice: Bool {
+        [.chooseForm, .whichPerson, .translateChoice].contains(question.kind)
     }
 
     var body: some View {
@@ -262,7 +344,20 @@ private struct VerbFeedbackPanel: View {
                     .multilineTextAlignment(.center)
             }
 
-            if question.kind != .fullTable {
+            if question.kind.isTranslation {
+                HStack {
+                    Text("\(verb.emoji) \(verb.infinitive)")
+                        .font(.title3.bold())
+                    Button {
+                        Speaker.shared.speak(spoken)
+                    } label: {
+                        Image(systemName: "speaker.wave.2.fill")
+                    }
+                    .buttonStyle(.borderless)
+                }
+                Text(verb.english)
+                    .foregroundStyle(.secondary)
+            } else if question.kind != .fullTable {
                 HStack {
                     Text("\(question.person.pronoun) \(question.form)")
                         .font(.title3.bold())
@@ -274,7 +369,7 @@ private struct VerbFeedbackPanel: View {
                     .buttonStyle(.borderless)
                 }
             }
-            ConjugationGrid(verb: verb, highlight: question.kind == .fullTable ? nil : question.person)
+            ConjugationGrid(verb: verb, highlight: question.kind == .fullTable || question.kind.isTranslation ? nil : question.person)
                 .padding(10)
                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             if let note = verb.note {
@@ -297,7 +392,7 @@ private struct VerbFeedbackPanel: View {
                 }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Segnala errore")
-                if feedback.verdict != .correct && question.kind != .chooseForm && question.kind != .whichPerson {
+                if feedback.verdict != .correct && !isChoice {
                     Button("Avevo ragione", action: onOverride)
                         .buttonStyle(.bordered)
                 }
