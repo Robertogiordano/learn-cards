@@ -47,7 +47,7 @@ struct MultipleChoiceView: View {
 struct TypingView: View {
     let exercise: Exercise
     let isAnswered: Bool
-    let onSubmit: (Verdict, String) -> Void
+    let onSubmit: (Verdict, String, @escaping AnswerRecheck) -> Void
 
     private enum Field { case first, second }
 
@@ -118,24 +118,31 @@ struct TypingView: View {
         guard !isAnswered, canSubmit else { return }
         focus = nil
         let entry = exercise.entry
+        let first = self.first, second = self.second
+        let check: AnswerRecheck
+        let given: String
         switch exercise.area {
         case .translation where exercise.kind == .typeEnglish:
-            onSubmit(AnswerChecker.compareEnglish(first, accepted: entry.english), first.trimmed)
+            check = { AnswerChecker.compareEnglish(first, accepted: $0.english) }
+            given = first.trimmed
         case .translation:
-            onSubmit(AnswerChecker.checkTranslation(first, entry: entry), first.trimmed)
+            check = { AnswerChecker.checkTranslation(first, entry: $0) }
+            given = first.trimmed
         case .article:
-            let verdict = AnswerChecker.checkArticle(definite: first, indefinite: second, entry: entry)
-            onSubmit(verdict, "\(first.trimmed) \(entry.german) / \(second.trimmed) \(entry.german)")
+            check = { AnswerChecker.checkArticle(definite: first, indefinite: second, entry: $0) }
+            given = "\(first.trimmed) \(entry.german) / \(second.trimmed) \(entry.german)"
         case .plural:
-            onSubmit(AnswerChecker.checkPlural(first, entry: entry), "die \(first.trimmed)")
+            check = { AnswerChecker.checkPlural(first, entry: $0) }
+            given = "die \(first.trimmed)"
         }
+        onSubmit(check(entry), given, check)
     }
 }
 
 struct SpeakingView: View {
     let exercise: Exercise
     let isAnswered: Bool
-    let onSubmit: (Verdict, String) -> Void
+    let onSubmit: (Verdict, String, @escaping AnswerRecheck) -> Void
 
     @StateObject private var recognizer = SpeechRecognizer()
     @State private var isEvaluating = false
@@ -193,8 +200,9 @@ struct SpeakingView: View {
         Task { @MainActor in
             let transcripts = await recognizer.stop()
             isEvaluating = false
-            let verdict = AnswerChecker.checkSpoken(transcripts, entry: exercise.entry, area: exercise.area)
-            onSubmit(verdict, transcripts.first ?? "—")
+            let area = exercise.area
+            let check: AnswerRecheck = { AnswerChecker.checkSpoken(transcripts, entry: $0, area: area) }
+            onSubmit(check(exercise.entry), transcripts.first ?? "—", check)
         }
     }
 }

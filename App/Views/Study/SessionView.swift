@@ -50,15 +50,19 @@ struct ExerciseView: View {
             case .multipleChoice:
                 MultipleChoiceView(exercise: exercise, isAnswered: isAnswered) { index in
                     let verdict: Verdict = index == exercise.correctIndex ? .correct : .wrong
-                    session.submit(verdict, given: exercise.options[index])
+                    // Article options follow the fixed gender order, so the pick maps to a gender.
+                    let recheck: AnswerRecheck? = exercise.area == .article
+                        ? { $0.article == Article.allCases[index] ? .correct : .wrong }
+                        : nil
+                    session.submit(verdict, given: exercise.options[index], recheck: recheck)
                 }
             case .typeGerman, .typeEnglish:
-                TypingView(exercise: exercise, isAnswered: isAnswered) { verdict, given in
-                    session.submit(verdict, given: given)
+                TypingView(exercise: exercise, isAnswered: isAnswered) { verdict, given, recheck in
+                    session.submit(verdict, given: given, recheck: recheck)
                 }
             case .speakGerman:
-                SpeakingView(exercise: exercise, isAnswered: isAnswered) { verdict, given in
-                    session.submit(verdict, given: given)
+                SpeakingView(exercise: exercise, isAnswered: isAnswered) { verdict, given, recheck in
+                    session.submit(verdict, given: given, recheck: recheck)
                 }
             }
 
@@ -66,7 +70,10 @@ struct ExerciseView: View {
                 FeedbackPanel(
                     exercise: exercise,
                     feedback: feedback,
+                    themes: session.themes,
                     onOverride: session.overrideAsCorrect,
+                    onCorrectArticle: session.correctArticle(to:),
+                    onEditWord: session.updateWord,
                     onContinue: session.advance
                 )
             }
@@ -113,10 +120,14 @@ struct PromptCard: View {
 struct FeedbackPanel: View {
     let exercise: Exercise
     let feedback: AnswerFeedback
+    let themes: [String]
     let onOverride: () -> Void
+    let onCorrectArticle: (Article) -> Void
+    let onEditWord: (VocabEntry) -> Void
     let onContinue: () -> Void
 
     @AppStorage(SettingsKey.autoSpeak) private var autoSpeak = true
+    @State private var isEditingWord = false
 
     private var title: String {
         switch feedback.verdict {
@@ -181,7 +192,16 @@ struct FeedbackPanel: View {
             Text(exercise.entry.englishDisplay)
                 .foregroundStyle(.secondary)
 
+            if let article = feedback.correctedArticle {
+                Label("Genere corretto: \(article.rawValue) (\(article.genderLabel))", systemImage: "checkmark.seal")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             HStack {
+                if exercise.area == .article {
+                    reportMenu
+                }
                 if feedback.verdict != .correct && exercise.kind != .multipleChoice {
                     Button("Avevo ragione", action: onOverride)
                         .buttonStyle(.bordered)
@@ -199,6 +219,33 @@ struct FeedbackPanel: View {
                 Speaker.shared.speak(spokenSolution)
             }
         }
+        .onChange(of: feedback.correctedArticle) { _, article in
+            if autoSpeak && article != nil {
+                Speaker.shared.speak(spokenSolution)
+            }
+        }
+        .sheet(isPresented: $isEditingWord) {
+            WordEditView(title: "Modifica parola", entry: exercise.entry, themes: themes, onSave: onEditWord)
+        }
+    }
+
+    /// Lets the learner fix a gender the extraction got wrong, or edit the word.
+    private var reportMenu: some View {
+        Menu {
+            Section("Il genere giusto è…") {
+                ForEach(Article.allCases.filter { $0 != exercise.entry.article }, id: \.self) { article in
+                    Button("\(article.rawValue) · \(article.genderLabel)") { onCorrectArticle(article) }
+                }
+            }
+            Button {
+                isEditingWord = true
+            } label: {
+                Label("Modifica parola…", systemImage: "pencil")
+            }
+        } label: {
+            Label("Segnala errore", systemImage: "flag")
+        }
+        .buttonStyle(.bordered)
     }
 }
 

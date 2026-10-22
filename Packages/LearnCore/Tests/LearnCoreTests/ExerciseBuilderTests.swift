@@ -70,6 +70,18 @@ final class ExerciseBuilderTests: XCTestCase {
         XCTAssertEqual(exercise.prompt, "der Tisch")
     }
 
+    func testWithEntryMovesArticleAnswerAndKeepsID() {
+        var rng = SeededGenerator(state: 1)
+        let exercise = ExerciseBuilder.make(area: .article, kind: .multipleChoice, entry: tisch, pool: pool, using: &rng)
+        var corrected = tisch
+        corrected.article = .die
+        let updated = exercise.withEntry(corrected)
+        XCTAssertEqual(updated.id, exercise.id)
+        XCTAssertEqual(updated.correctIndex, 1)
+        XCTAssertEqual(updated.options, exercise.options)
+        XCTAssertEqual(updated.expectedAnswer, "die Tisch / eine Tisch")
+    }
+
     func testTinyPoolFallsBackToTyping() {
         var rng = SeededGenerator(state: 1)
         let exercise = ExerciseBuilder.make(area: .translation, kind: .multipleChoice, entry: laufen, pool: [laufen], using: &rng)

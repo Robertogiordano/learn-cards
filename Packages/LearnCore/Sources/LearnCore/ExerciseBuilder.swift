@@ -12,7 +12,7 @@ public enum ExerciseKind: String, CaseIterable, Codable, Hashable, Sendable {
 }
 
 public struct Exercise: Identifiable, Sendable {
-    public let id = UUID()
+    public let id: UUID
     public let area: StudyArea
     public let kind: ExerciseKind
     public let entry: VocabEntry
@@ -23,6 +23,7 @@ public struct Exercise: Identifiable, Sendable {
     public let correctIndex: Int?
 
     public init(
+        id: UUID = UUID(),
         area: StudyArea,
         kind: ExerciseKind,
         entry: VocabEntry,
@@ -30,12 +31,25 @@ public struct Exercise: Identifiable, Sendable {
         optionDetails: [String] = [],
         correctIndex: Int? = nil
     ) {
+        self.id = id
         self.area = area
         self.kind = kind
         self.entry = entry
         self.options = options
         self.optionDetails = optionDetails
         self.correctIndex = correctIndex
+    }
+
+    /// The same exercise after the word was corrected (e.g. a wrong gender from the extraction).
+    /// Keeps the id so the screen is not reset; article options are in fixed gender order,
+    /// so only the right index moves.
+    public func withEntry(_ corrected: VocabEntry) -> Exercise {
+        var index = correctIndex
+        if area == .article, kind == .multipleChoice, let article = corrected.article {
+            index = Article.allCases.firstIndex(of: article)
+        }
+        return Exercise(id: id, area: area, kind: kind, entry: corrected, options: options,
+                        optionDetails: optionDetails, correctIndex: index)
     }
 
     public var prompt: String {
