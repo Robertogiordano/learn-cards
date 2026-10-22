@@ -18,17 +18,26 @@ public struct PathWord: Sendable {
     public var createdAt: Date
     /// One schedule per area the word takes part in (no article area for verbs, ...).
     public var schedules: [StudyArea: SRSState]
-    /// Correct answers in a row per area, counting every session (practice included).
-    /// Missing areas fall back to the schedule's repetitions.
+    /// Correct answers in a row per area, any kind of exercise, counting every session
+    /// (practice included): drives the adaptive kind. Missing areas fall back to the
+    /// schedule's repetitions.
     public var streaks: [StudyArea: Int]
+    /// Correct answers in a row per area and kind of exercise: drives the percentages.
+    public var kindStreaks: [StudyArea: [ExerciseKind: Int]]
 
     public init(id: UUID, category: String, createdAt: Date, schedules: [StudyArea: SRSState],
-                streaks: [StudyArea: Int] = [:]) {
+                streaks: [StudyArea: Int] = [:], kindStreaks: [StudyArea: [ExerciseKind: Int]] = [:]) {
         self.id = id
         self.category = category
         self.createdAt = createdAt
         self.schedules = schedules
         self.streaks = streaks
+        self.kindStreaks = kindStreaks
+    }
+
+    /// Right answers in a row with one kind of exercise in an area.
+    public func level(in area: StudyArea, kind: ExerciseKind) -> Int {
+        kindStreaks[area]?[kind] ?? 0
     }
 
     /// Never studied in any area.
@@ -45,10 +54,17 @@ public struct ThemeProgress: Identifiable, Sendable {
     public var wordCount: Int
     /// Words never studied: shown as "+N nuove".
     public var newCount: Int
-    /// Share of mastered words per area; areas with no applicable word are absent.
-    public var mastery: [StudyArea: Double]
+    /// Share of mastery per area and kind of exercise; areas with no applicable word are absent.
+    public var kindMastery: [StudyArea: [ExerciseKind: Double]]
 
     public var id: String { theme }
+
+    /// Per area: the average of its kinds of exercise.
+    public var mastery: [StudyArea: Double] {
+        kindMastery.mapValues { kinds in
+            kinds.isEmpty ? 0 : kinds.values.reduce(0, +) / Double(kinds.count)
+        }
+    }
 
     public func hasStar(_ area: StudyArea) -> Bool {
         (mastery[area] ?? 0) >= PathPlanner.starThreshold
@@ -60,14 +76,14 @@ public struct ThemeProgress: Identifiable, Sendable {
 }
 
 /// The guided path: theme map, "continue" lessons and the mixed bonus review.
-/// Everything is derived from the spaced-repetition state, so new themes and new
-/// words simply show up without resetting any progress.
+/// Everything is derived from per-word state, so new themes and new words simply
+/// show up without resetting any progress.
 public enum PathPlanner {
     public static let starThreshold = 0.8
     public static let masteryRepetitions = 2
 
-    /// Share of mastery a word brings to its theme: one right answer is half way,
-    /// two in a row is full; a mistake starts over.
+    /// Share of mastery a word brings to its theme for one kind of exercise:
+    /// one right answer is half way, two in a row is full; a mistake starts over.
     public static func progress(level: Int) -> Double {
         Double(min(max(level, 0), masteryRepetitions)) / Double(masteryRepetitions)
     }
@@ -75,18 +91,22 @@ public enum PathPlanner {
     /// Themes with new words first, then alphabetical, the catch-all theme last.
     public static func themeProgress(_ words: [PathWord]) -> [ThemeProgress] {
         let progress = Dictionary(grouping: words, by: \.category).map { theme, themeWords in
-            var mastery: [StudyArea: Double] = [:]
+            var kindMastery: [StudyArea: [ExerciseKind: Double]] = [:]
             for area in StudyArea.allCases {
                 let applicable = themeWords.filter { $0.schedules[area] != nil }
                 guard !applicable.isEmpty else { continue }
-                let total = applicable.map { progress(level: $0.level(in: area)) }.reduce(0, +)
-                mastery[area] = total / Double(applicable.count)
+                var kinds: [ExerciseKind: Double] = [:]
+                for kind in area.kinds {
+                    let total = applicable.map { progress(level: $0.level(in: area, kind: kind)) }.reduce(0, +)
+                    kinds[kind] = total / Double(applicable.count)
+                }
+                kindMastery[area] = kinds
             }
             return ThemeProgress(
                 theme: theme,
                 wordCount: themeWords.count,
                 newCount: themeWords.filter(\.isNew).count,
-                mastery: mastery
+                kindMastery: kindMastery
             )
         }
         return progress.sorted { lhs, rhs in

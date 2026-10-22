@@ -15,7 +15,7 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
 
 - **Percorso** (scheda Studia), pensato per un vocabolario che cresce:
   - **Continua il percorso**: una lezione sul tema in focus (quello importato più di recente, oppure il più debole), seguita da un **Bonus** che mescola tutto quello che hai già visto in ogni tema e area.
-  - **Mappa dei temi**: per ogni tema una stella per area (Traduzione, Articolo, Plurale), accesa all'80%. Ogni risposta giusta conta, anche negli allenamenti extra: una vale metà parola, due di fila la parola intera, un errore la fa ripartire, più il badge "+N nuove". Nessun tema è bloccato e le parole aggiunte non azzerano i progressi.
+  - **Mappa dei temi**: per ogni tema una stella per area (Traduzione, Articolo, Plurale), accesa all'80%. Dentro il tema ogni tipo di esercizio (scelta multipla, scrittura, pronuncia…) ha la sua percentuale e quella dell'area è la loro media. Ogni risposta giusta conta, anche negli allenamenti extra: una vale metà parola, due di fila la parola intera, un errore la fa ripartire, più il badge "+N nuove". Nessun tema è bloccato e le parole aggiunte non azzerano i progressi.
   - Ogni parola passa da scelta multipla a scrittura a pronuncia man mano che la impari; un errore la riporta alla scelta multipla.
   - **Allenamento libero** per scegliere a mano area, temi e tipo di esercizio.
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
@@ -64,7 +64,7 @@ App/
 
 ## Backup
 
-Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste che muovono le percentuali del percorso, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
+Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
 
 L'import offre due modalità:
 

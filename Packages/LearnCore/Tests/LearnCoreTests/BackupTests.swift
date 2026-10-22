@@ -68,12 +68,16 @@ final class BackupTests: XCTestCase {
             createdAt: base,
             updatedAt: base,
             srs: .new(now: base),
-            streaks: [.translation: 3, .article: 0]
+            streaks: [.translation: 3, .article: 0],
+            kindStreaks: [.article: [.multipleChoice: 2, .speakGerman: 1]]
         )
         let decoded = try XCTUnwrap(BackupCodec.decode(BackupCodec.encode(Backup(exportedAt: base, words: [original]))).words.first)
         XCTAssertEqual(decoded.streak(for: .translation), 3)
         XCTAssertEqual(decoded.streak(for: .article), 0)
         XCTAssertNil(decoded.streak(for: .plural))
+        XCTAssertEqual(decoded.streak(for: .article, kind: .multipleChoice), 2)
+        XCTAssertEqual(decoded.streak(for: .article, kind: .speakGerman), 1)
+        XCTAssertNil(decoded.streak(for: .article, kind: .typeGerman))
     }
 
     func testRejectsFutureVersion() throws {

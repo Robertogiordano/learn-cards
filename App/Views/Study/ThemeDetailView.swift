@@ -12,6 +12,7 @@ struct ThemeDetailView: View {
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @State private var activeSession: StudySession?
     @State private var alertMessage: String?
+    @State private var expandedAreas: Set<StudyArea> = []
 
     private var themeWords: [Word] {
         words.filter { $0.category == theme }.sorted { $0.createdAt < $1.createdAt }
@@ -24,13 +25,12 @@ struct ThemeDetailView: View {
         return List {
             Section {
                 ForEach(StudyArea.allCases, id: \.self) { area in
-                    if let mastery = progress?.mastery[area] {
-                        areaRow(area, mastery: mastery, words: themeWords.filter { $0.isApplicable(to: area) },
-                                hasStar: progress?.hasStar(area) ?? false)
+                    if let progress, progress.mastery[area] != nil {
+                        areaRow(area, progress: progress, words: themeWords.filter { $0.isApplicable(to: area) })
                     }
                 }
             } footer: {
-                Text("Ogni risposta giusta fa avanzare la percentuale: una vale metà parola, due di fila la parola intera; un errore la fa ripartire. La stella si accende all'80%. Con \"Automatico\" le parole nuove partono dalla scelta multipla, poi si scrivono e infine si pronunciano; dal menu Allena puoi anche scegliere tu il tipo di esercizio.")
+                Text("Ogni tipo di esercizio ha la sua percentuale: una risposta giusta vale metà parola, due di fila la parola intera, un errore la fa ripartire. La percentuale dell'area è la media dei suoi esercizi e la stella si accende all’80%. “Automatico” sceglie l'esercizio in base a quanto conosci ogni parola.")
             }
 
             Section("Parole") {
@@ -51,15 +51,18 @@ struct ThemeDetailView: View {
         }
     }
 
-    private func areaRow(_ area: StudyArea, mastery: Double, words: [Word], hasStar: Bool) -> some View {
+    private func areaRow(_ area: StudyArea, progress: ThemeProgress, words: [Word]) -> some View {
+        let mastery = progress.mastery[area] ?? 0
+        let hasStar = progress.hasStar(area)
         let due = words.filter { !$0.srs(for: area).isNew && $0.isDue(in: area) }.count
         let new = words.filter { $0.srs(for: area).isNew }.count
+        let isExpanded = expandedAreas.contains(area)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Label(area.title, systemImage: area.systemImage)
                     .font(.headline)
                 Spacer()
-                Text("\(Int((mastery * 100).rounded()))%")
+                Text(percent(mastery))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 Image(systemName: hasStar ? "star.fill" : "star")
@@ -72,30 +75,71 @@ struct ThemeDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Menu {
-                    Button {
-                        start(area, words: words, policy: .adaptive)
-                    } label: {
-                        Label("Automatico (percorso)", systemImage: "wand.and.stars")
-                    }
-                    Divider()
-                    ForEach(StudyMode.available(in: area)) { mode in
-                        Button {
-                            start(area, words: words, policy: .fixed(mode.kind))
-                        } label: {
-                            Label(mode.title(in: area), systemImage: mode.systemImage)
-                        }
+                Button {
+                    withAnimation {
+                        if isExpanded { expandedAreas.remove(area) } else { expandedAreas.insert(area) }
                     }
                 } label: {
-                    Label("Allena", systemImage: "chevron.down")
-                        .labelStyle(.titleAndIcon)
+                    Label("Allena", systemImage: isExpanded ? "chevron.up" : "chevron.down")
                 }
-                .menuStyle(.button)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
+
+            if isExpanded {
+                VStack(spacing: 0) {
+                    optionRow(title: "Automatico (percorso)", systemImage: "wand.and.stars", value: nil, color: area.color) {
+                        start(area, words: words, policy: .adaptive)
+                    }
+                    optionRow(title: StudyMode.mixed.title(in: area), systemImage: StudyMode.mixed.systemImage,
+                              value: nil, color: area.color) {
+                        start(area, words: words, policy: .fixed(nil))
+                    }
+                    ForEach(area.kinds, id: \.self) { kind in
+                        let mode = StudyMode(rawValue: kind.rawValue) ?? .mixed
+                        optionRow(title: mode.title(in: area), systemImage: mode.systemImage,
+                                  value: progress.kindMastery[area]?[kind] ?? 0, color: area.color) {
+                            start(area, words: words, policy: .fixed(kind))
+                        }
+                    }
+                }
+                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            }
         }
         .padding(.vertical, 4)
+    }
+
+    /// One way to train an area; kinds of exercise show their own percentage.
+    private func optionRow(title: String, systemImage: String, value: Double?, color: Color,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Label(title, systemImage: systemImage)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if let value {
+                        Text(percent(value))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "play.circle.fill")
+                        .foregroundStyle(color)
+                }
+                if let value {
+                    ProgressView(value: value)
+                        .tint(color)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+    }
+
+    private func percent(_ value: Double) -> String {
+        "\(Int((value * 100).rounded()))%"
     }
 
     /// Due reviews first, then new words, then the ones closest to being due.

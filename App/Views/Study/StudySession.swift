@@ -55,7 +55,8 @@ final class StudySession: ObservableObject, Identifiable {
     private var hasShownBonus = false
     private var graded: Set<StudyItem> = []
     /// State before the last first-attempt grading, so "I was right" can redo it.
-    private var snapshot: (item: StudyItem, srs: SRSState, streak: Int, timesCorrect: Int, timesWrong: Int)?
+    private var snapshot: (item: StudyItem, kind: ExerciseKind, srs: SRSState, streak: Int, kindStreak: Int,
+                           timesCorrect: Int, timesWrong: Int)?
     private var shownAt = Date()
     private var rng = SystemRandomNumberGenerator()
 
@@ -98,8 +99,8 @@ final class StudySession: ObservableObject, Identifiable {
 
         // Only the first attempt counts; repeats after a mistake are practice.
         if !graded.contains(current) {
-            snapshot = (current, word.srs(for: current.area), word.streak(for: current.area),
-                        word.timesCorrect, word.timesWrong)
+            snapshot = (current, exercise.kind, word.srs(for: current.area), word.streak(for: current.area),
+                        word.kindStreak(for: current.area, kind: exercise.kind), word.timesCorrect, word.timesWrong)
             record(verdict, for: word, area: current.area, kind: exercise.kind)
             graded.insert(current)
             results[verdict, default: 0] += 1
@@ -153,6 +154,7 @@ final class StudySession: ObservableObject, Identifiable {
         if let snapshot, snapshot.item == current {
             word.setSRS(snapshot.srs, for: current.area)
             word.setStreak(snapshot.streak, for: current.area)
+            word.setKindStreak(snapshot.kindStreak, for: current.area, kind: snapshot.kind)
             word.timesCorrect = snapshot.timesCorrect
             word.timesWrong = snapshot.timesWrong
             record(verdict, for: word, area: current.area, kind: exercise.kind)
@@ -195,10 +197,16 @@ final class StudySession: ObservableObject, Identifiable {
         }
         // Every graded answer moves the path's progress, due or not;
         // "almost" neither advances nor resets it.
+        // The kind of exercise has its own streak too: it fills that kind's percentage.
         switch verdict {
-        case .correct: word.setStreak(word.streak(for: area) + 1, for: area)
-        case .almost: break
-        case .wrong: word.setStreak(0, for: area)
+        case .correct:
+            word.setStreak(word.streak(for: area) + 1, for: area)
+            word.setKindStreak(word.kindStreak(for: area, kind: kind) + 1, for: area, kind: kind)
+        case .almost:
+            break
+        case .wrong:
+            word.setStreak(0, for: area)
+            word.setKindStreak(0, for: area, kind: kind)
         }
         if verdict == .wrong {
             word.timesWrong += 1

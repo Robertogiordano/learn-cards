@@ -19,6 +19,9 @@ public struct BackupWord: Codable, Hashable, Sendable {
     /// Right answers in a row per area (keyed by `StudyArea.rawValue`), which drive the
     /// path's percentages. Absent in older backups: the schedules' repetitions stand in.
     public var streaks: [String: Int]
+    /// Right answers in a row per area and kind of exercise, keyed "area.kind"
+    /// (e.g. "article.multipleChoice"): the path's percentages. Absent in older backups.
+    public var kindStreaks: [String: Int]
     public var timesCorrect: Int
     public var timesWrong: Int
 
@@ -30,6 +33,7 @@ public struct BackupWord: Codable, Hashable, Sendable {
         articleSrs: SRSState? = nil,
         pluralSrs: SRSState? = nil,
         streaks: [StudyArea: Int] = [:],
+        kindStreaks: [StudyArea: [ExerciseKind: Int]] = [:],
         timesCorrect: Int = 0,
         timesWrong: Int = 0
     ) {
@@ -47,13 +51,20 @@ public struct BackupWord: Codable, Hashable, Sendable {
         self.articleSrs = articleSrs ?? .new(now: createdAt)
         self.pluralSrs = pluralSrs ?? .new(now: createdAt)
         self.streaks = Dictionary(uniqueKeysWithValues: streaks.map { ($0.key.rawValue, $0.value) })
+        var flat: [String: Int] = [:]
+        for (area, kinds) in kindStreaks {
+            for (kind, value) in kinds {
+                flat[Self.kindKey(area, kind)] = value
+            }
+        }
+        self.kindStreaks = flat
         self.timesCorrect = timesCorrect
         self.timesWrong = timesWrong
     }
 
     enum CodingKeys: String, CodingKey {
         case id, german, article, plural, english, partOfSpeech, emoji, category
-        case createdAt, updatedAt, srs, articleSrs, pluralSrs, streaks, timesCorrect, timesWrong
+        case createdAt, updatedAt, srs, articleSrs, pluralSrs, streaks, kindStreaks, timesCorrect, timesWrong
     }
 
     /// Fields added in schema v2 are optional so v1 backups still load.
@@ -73,6 +84,7 @@ public struct BackupWord: Codable, Hashable, Sendable {
         articleSrs = try container.decodeIfPresent(SRSState.self, forKey: .articleSrs) ?? .new(now: createdAt)
         pluralSrs = try container.decodeIfPresent(SRSState.self, forKey: .pluralSrs) ?? .new(now: createdAt)
         streaks = try container.decodeIfPresent([String: Int].self, forKey: .streaks) ?? [:]
+        kindStreaks = try container.decodeIfPresent([String: Int].self, forKey: .kindStreaks) ?? [:]
         timesCorrect = try container.decodeIfPresent(Int.self, forKey: .timesCorrect) ?? 0
         timesWrong = try container.decodeIfPresent(Int.self, forKey: .timesWrong) ?? 0
     }
@@ -87,6 +99,15 @@ public struct BackupWord: Codable, Hashable, Sendable {
     /// Right answers in a row in an area, nil when the backup does not know it.
     public func streak(for area: StudyArea) -> Int? {
         streaks[area.rawValue]
+    }
+
+    /// Right answers in a row with one kind of exercise; nil when the backup does not know it.
+    public func streak(for area: StudyArea, kind: ExerciseKind) -> Int? {
+        kindStreaks[Self.kindKey(area, kind)]
+    }
+
+    static func kindKey(_ area: StudyArea, _ kind: ExerciseKind) -> String {
+        "\(area.rawValue).\(kind.rawValue)"
     }
 
     /// Most recent edit or review in any area: decides which copy wins when merging.

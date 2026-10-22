@@ -45,6 +45,9 @@ final class Word {
     var translationStreak: Int = -1
     var articleStreak: Int = -1
     var pluralStreak: Int = -1
+    /// Right answers in a row per area and kind of exercise, as JSON {"article.multipleChoice": 2}:
+    /// the path's percentages. Empty for words never practised that way.
+    var kindStreaksJSON: String = ""
 
     var timesCorrect: Int
     var timesWrong: Int
@@ -167,6 +170,41 @@ final class Word {
         return stored >= 0 ? stored : srs(for: area).repetitions
     }
 
+    var kindStreaks: [StudyArea: [ExerciseKind: Int]] {
+        get {
+            guard let data = kindStreaksJSON.data(using: .utf8),
+                  let flat = try? JSONDecoder().decode([String: Int].self, from: data) else { return [:] }
+            var result: [StudyArea: [ExerciseKind: Int]] = [:]
+            for (key, value) in flat {
+                let parts = key.split(separator: ".").map(String.init)
+                guard parts.count == 2, let area = StudyArea(rawValue: parts[0]),
+                      let kind = ExerciseKind(rawValue: parts[1]) else { continue }
+                result[area, default: [:]][kind] = value
+            }
+            return result
+        }
+        set {
+            var flat: [String: Int] = [:]
+            for (area, kinds) in newValue {
+                for (kind, value) in kinds {
+                    flat["\(area.rawValue).\(kind.rawValue)"] = value
+                }
+            }
+            let data = (try? JSONEncoder().encode(flat)) ?? Data()
+            kindStreaksJSON = String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    func kindStreak(for area: StudyArea, kind: ExerciseKind) -> Int {
+        kindStreaks[area]?[kind] ?? 0
+    }
+
+    func setKindStreak(_ value: Int, for area: StudyArea, kind: ExerciseKind) {
+        var streaks = kindStreaks
+        streaks[area, default: [:]][kind] = value
+        kindStreaks = streaks
+    }
+
     func setStreak(_ value: Int, for area: StudyArea) {
         switch area {
         case .translation: translationStreak = value
@@ -195,13 +233,15 @@ final class Word {
             schedules[area] = srs(for: area)
             streaks[area] = streak(for: area)
         }
-        return PathWord(id: id, category: category, createdAt: createdAt, schedules: schedules, streaks: streaks)
+        return PathWord(id: id, category: category, createdAt: createdAt, schedules: schedules,
+                        streaks: streaks, kindStreaks: kindStreaks)
     }
 
     var backup: BackupWord {
         BackupWord(entry: entry, createdAt: createdAt, updatedAt: updatedAt, srs: srs(for: .translation),
                    articleSrs: srs(for: .article), pluralSrs: srs(for: .plural),
-                   streaks: trackedStreaks, timesCorrect: timesCorrect, timesWrong: timesWrong)
+                   streaks: trackedStreaks, kindStreaks: kindStreaks,
+                   timesCorrect: timesCorrect, timesWrong: timesWrong)
     }
 
     /// Only streaks actually recorded; untracked ones stay out of the backup.
@@ -221,9 +261,16 @@ final class Word {
 
     /// Unknown streaks go back to "not tracked", so the schedules stand in.
     private func applyStreaks(from backup: BackupWord) {
+        var kinds: [StudyArea: [ExerciseKind: Int]] = [:]
         for area in StudyArea.allCases {
             setStreak(backup.streak(for: area) ?? -1, for: area)
+            for kind in area.kinds {
+                if let value = backup.streak(for: area, kind: kind) {
+                    kinds[area, default: [:]][kind] = value
+                }
+            }
         }
+        kindStreaks = kinds
     }
 
     /// Edits the vocabulary fields, keeping identity and learning history.

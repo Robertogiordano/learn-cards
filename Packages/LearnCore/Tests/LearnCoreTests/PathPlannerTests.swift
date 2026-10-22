@@ -24,10 +24,22 @@ final class PathPlannerTests: XCTestCase {
         PathWord(id: UUID(), category: theme, createdAt: now, schedules: [.translation: translation])
     }
 
+    /// The same streak for every kind of exercise of an area.
+    private func everyKind(_ area: StudyArea, _ level: Int) -> [ExerciseKind: Int] {
+        Dictionary(uniqueKeysWithValues: area.kinds.map { ($0, level) })
+    }
+
     func testProgressStarsAndNewBadge() throws {
         let mastered = state(reps: 2)
-        var words = (0..<4).map { _ in noun("Cibo", translation: mastered, article: mastered, plural: state(reps: 1)) }
-        words.append(verb("Cibo", translation: mastered))
+        var words: [PathWord] = (0..<4).map { _ in
+            var word = noun("Cibo", translation: mastered, article: mastered, plural: state(reps: 1))
+            word.kindStreaks = [.translation: everyKind(.translation, 2), .article: everyKind(.article, 2),
+                                .plural: everyKind(.plural, 1)]
+            return word
+        }
+        var verbWord = verb("Cibo", translation: mastered)
+        verbWord.kindStreaks = [.translation: everyKind(.translation, 2)]
+        words.append(verbWord)
 
         var cibo = try XCTUnwrap(PathPlanner.themeProgress(words).first)
         XCTAssertEqual(cibo.wordCount, 5)
@@ -45,22 +57,27 @@ final class PathPlannerTests: XCTestCase {
         XCTAssertTrue(cibo.hasStar(.article))
     }
 
-    func testProgressAdvancesWithEveryRightAnswer() throws {
+    func testProgressIsPerKindAndAreaIsTheAverage() throws {
         var word = noun("Cibo")
         let theme = { try XCTUnwrap(PathPlanner.themeProgress([word]).first) }
         XCTAssertEqual(try theme().mastery[.translation], 0)
+        XCTAssertEqual(try theme().kindMastery[.translation]?.count, 4)
+        XCTAssertEqual(try theme().kindMastery[.article]?.count, 3)
 
-        // Practice the same day: the schedule does not move, the streak does.
-        word.streaks[.translation] = 1
-        XCTAssertEqual(try theme().mastery[.translation], 0.5)
-        word.streaks[.translation] = 3
+        // One right multiple choice: that kind is half way, the area a quarter of that.
+        word.kindStreaks[.translation] = [.multipleChoice: 1]
+        XCTAssertEqual(try theme().kindMastery[.translation]?[.multipleChoice], 0.5)
+        XCTAssertEqual(try theme().kindMastery[.translation]?[.typeGerman], 0)
+        XCTAssertEqual(try theme().mastery[.translation] ?? -1, 0.125, accuracy: 0.0001)
+
+        word.kindStreaks[.translation] = everyKind(.translation, 3)
         XCTAssertEqual(try theme().mastery[.translation], 1)
         XCTAssertTrue(try theme().hasStar(.translation))
 
-        // A mistake starts over even if the schedule still says "learned".
-        word.schedules[.translation] = state(reps: 4)
-        word.streaks[.translation] = 0
-        XCTAssertEqual(try theme().mastery[.translation], 0)
+        // A mistake in one kind starts that kind over and pulls the area below the star.
+        word.kindStreaks[.translation]?[.speakGerman] = 0
+        XCTAssertEqual(try theme().mastery[.translation] ?? -1, 0.75, accuracy: 0.0001)
+        XCTAssertFalse(try theme().hasStar(.translation))
     }
 
     func testAreaWithoutApplicableWordsHasNoMastery() throws {
@@ -84,7 +101,9 @@ final class PathPlannerTests: XCTestCase {
         let newer = noun("Cibo", created: 100)
         XCTAssertEqual(PathPlanner.focusTheme([older, newer, noun("Lavoro", translation: state(reps: 2))]), "Cibo")
 
-        let strong = noun("Casa", translation: state(reps: 3), article: state(reps: 3), plural: state(reps: 3))
+        var strong = noun("Casa", translation: state(reps: 3), article: state(reps: 3), plural: state(reps: 3))
+        strong.kindStreaks = [.translation: everyKind(.translation, 2), .article: everyKind(.article, 2),
+                              .plural: everyKind(.plural, 2)]
         let weak = noun("Cibo", translation: state(reps: 1), article: state(reps: 0), plural: state(reps: 0))
         XCTAssertEqual(PathPlanner.focusTheme([strong, weak]), "Cibo")
         XCTAssertNil(PathPlanner.focusTheme([]))
