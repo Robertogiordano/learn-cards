@@ -34,7 +34,7 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
   - pronuncia.
 
   Ogni esercizio ha la sua percentuale; "Automatico" va dal ricomporre allo scrivere e dire la frase; 2 frasi già viste entrano in ogni Bonus.
-- **Verbi** (sezione a parte): in Aggiungi scegli **Verbi**; il prompt dedicato estrae ogni verbo con il presente delle 6 persone (separabili con il prefisso in fondo, riflessivi con il pronome), il gruppo (regolari, cambio vocalico, irregolari, modali, separabili, riflessivi) e una nota su cosa fare attenzione. Esercizi:
+- **Verbi** (sezione a parte): in Aggiungi scegli **Verbi**. L'estrazione va per gradi: prima il modello legge dalla foto solo gli infiniti, poi l'app scarta quelli già nel vocabolario e chiede la coniugazione (senza foto, quindi pochi token) solo per i verbi nuovi. Il prompt dedicato restituisce ogni verbo con il presente delle 6 persone (separabili con il prefisso in fondo, riflessivi con il pronome), il gruppo (regolari, cambio vocalico, irregolari, modali, separabili, riflessivi) e una nota su cosa fare attenzione. Esercizi:
   - scegli la forma tra 4 (con errori tipici come *fahrst*);
   - scrivi la forma;
   - tabella completa;

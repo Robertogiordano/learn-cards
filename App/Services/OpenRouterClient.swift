@@ -49,6 +49,8 @@ struct OpenRouterClient {
         let instruction: String
         let schemaName: String
         let schema: [String: Any]
+        /// Extractions are mechanical: "thinking" only makes them slower and dearer.
+        var reasoning: [String: Any]? = ["enabled": false]
     }
 
     func extractVocabulary(fromJPEG jpeg: Data) async throws -> [VocabEntry] {
@@ -69,18 +71,33 @@ struct OpenRouterClient {
             system: PhraseExtractionPrompt.system(existingCategories: existingCategories),
             instruction: PhraseExtractionPrompt.userInstruction,
             schemaName: "phrases",
-            schema: PhraseExtractionPrompt.responseSchema
+            schema: PhraseExtractionPrompt.responseSchema,
+            // Solving gap exercises benefits from a little reasoning.
+            reasoning: ["effort": "low"]
         ))
         let phrases = try PhraseExtractionParser.parse(content, existingCategories: existingCategories)
         guard !phrases.isEmpty else { throw ClientError.noPhrases }
         return phrases
     }
 
-    /// Verbs with their present tense.
-    func extractVerbs(fromJPEG jpeg: Data) async throws -> [VerbEntry] {
+    /// Step 1 of a verb import: only the infinitives on the photo.
+    func extractVerbInfinitives(fromJPEG jpeg: Data) async throws -> [String] {
         let content = try await extract(jpeg: jpeg, request: Request(
+            system: VerbListPrompt.system(),
+            instruction: VerbListPrompt.userInstruction,
+            schemaName: "verb_list",
+            schema: VerbListPrompt.responseSchema
+        ))
+        let infinitives = try VerbListPrompt.parse(content)
+        guard !infinitives.isEmpty else { throw ClientError.noVerbs }
+        return infinitives
+    }
+
+    /// Step 2: the present tense of the verbs not yet saved (text only, no photo).
+    func conjugateVerbs(_ infinitives: [String]) async throws -> [VerbEntry] {
+        let content = try await extract(jpeg: nil, request: Request(
             system: VerbExtractionPrompt.system(),
-            instruction: VerbExtractionPrompt.userInstruction,
+            instruction: VerbExtractionPrompt.userInstruction(for: infinitives),
             schemaName: "verbs",
             schema: VerbExtractionPrompt.responseSchema
         ))
@@ -95,7 +112,8 @@ struct OpenRouterClient {
             system: CoachPrompt.system(),
             instruction: summary.json(),
             schemaName: "lesson",
-            schema: CoachPrompt.responseSchema
+            schema: CoachPrompt.responseSchema,
+            reasoning: ["effort": "low"]
         ))
         return try CoachPrompt.parse(content)
     }
@@ -105,8 +123,14 @@ struct OpenRouterClient {
         do {
             return try await complete(jpeg: jpeg, request: request, structured: true)
         } catch ClientError.http(let status, _) where status == 400 {
-            // Some models reject structured outputs: retry with the prompt alone.
-            return try await complete(jpeg: jpeg, request: request, structured: false)
+            // Some models reject the reasoning setting or structured outputs: drop them one at a time.
+            var plain = request
+            plain.reasoning = nil
+            if request.reasoning != nil,
+               let content = try? await complete(jpeg: jpeg, request: plain, structured: true) {
+                return content
+            }
+            return try await complete(jpeg: jpeg, request: plain, structured: false)
         }
     }
 
@@ -134,6 +158,9 @@ struct OpenRouterClient {
             "temperature": 0.2,
             "messages": [systemMessage, userMessage],
         ]
+        if let reasoning = extraction.reasoning {
+            body["reasoning"] = reasoning
+        }
         if structured {
             let schema: [String: Any] = [
                 "name": extraction.schemaName,

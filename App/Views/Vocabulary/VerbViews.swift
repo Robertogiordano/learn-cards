@@ -145,6 +145,8 @@ struct VerbEditView: View {
 
 /// Checks the extracted verbs and their tables before saving.
 struct ReviewVerbsView: View {
+    /// Verbs on the photo that were already saved and were not conjugated again.
+    let skipped: [String]
     let onSaved: (Int) -> Void
 
     @Environment(\.modelContext) private var context
@@ -154,7 +156,8 @@ struct ReviewVerbsView: View {
     @State private var editing: ReviewVerbItem?
     @State private var didMarkDuplicates = false
 
-    init(verbs: [VerbEntry], onSaved: @escaping (Int) -> Void) {
+    init(verbs: [VerbEntry], skipped: [String] = [], onSaved: @escaping (Int) -> Void) {
+        self.skipped = skipped
         self.onSaved = onSaved
         _items = State(initialValue: verbs.map { ReviewVerbItem(entry: $0, isSelected: true) })
     }
@@ -168,6 +171,14 @@ struct ReviewVerbsView: View {
     var body: some View {
         NavigationStack {
             List {
+                if !skipped.isEmpty {
+                    Section {
+                        Label("\(skipped.count) già nel vocabolario, non riconiugati: \(skipped.joined(separator: ", "))",
+                              systemImage: "checkmark.circle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 ForEach(items) { item in
                     HStack(alignment: .top, spacing: 12) {
                         Button {

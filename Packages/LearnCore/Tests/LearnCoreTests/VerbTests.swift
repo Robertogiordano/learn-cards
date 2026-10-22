@@ -129,6 +129,21 @@ final class VerbTests: XCTestCase {
         XCTAssertTrue(JSONSerialization.isValidJSONObject(VerbExtractionPrompt.responseSchema))
     }
 
+    func testInfinitiveList() throws {
+        let wrapped = #"{"infinitives": ["fahren", " Fahren ", "", "sich waschen", "aufstehen"]}"#
+        XCTAssertEqual(try VerbListPrompt.parse(wrapped), ["fahren", "sich waschen", "aufstehen"])
+        XCTAssertEqual(try VerbListPrompt.parse(#"Here: ["gehen", "gehen"]"#), ["gehen"])
+        XCTAssertThrowsError(try VerbListPrompt.parse("nessun verbo"))
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(VerbListPrompt.responseSchema))
+    }
+
+    func testMissingInfinitives() {
+        let existing: Set<String> = [fahren.dedupeKey, PhraseChecker.key("sich waschen")]
+        let missing = VerbExtractionPlan.missing(["Fahren", "Sich waschen", "aufstehen", "gehen"], existingKeys: existing)
+        XCTAssertEqual(missing, ["aufstehen", "gehen"])
+        XCTAssertTrue(VerbExtractionPlan.missing(["fahren"], existingKeys: existing).isEmpty)
+    }
+
     func testBackup() throws {
         let base = Date(timeIntervalSince1970: 1_780_000_000)
         let stored = BackupVerb(entry: fahren, createdAt: base, updatedAt: base, srs: .new(now: base),

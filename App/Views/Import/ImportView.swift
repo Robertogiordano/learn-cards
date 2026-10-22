@@ -16,6 +16,8 @@ struct ExtractedPhrases: Identifiable {
 struct ExtractedVerbs: Identifiable {
     let id = UUID()
     let verbs: [VerbEntry]
+    /// Verbs on the photo that were already saved, so they were not conjugated again.
+    var skipped: [String] = []
 }
 
 /// What a photo is uploaded for: each use case has its own specialised prompt.
@@ -37,12 +39,16 @@ struct ImportView: View {
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
     @Query private var words: [Word]
     @Query private var phrases: [Phrase]
+    @Query private var verbs: [Verb]
     @AppStorage(SettingsKey.importKind) private var kindRaw = ImportKind.words.rawValue
     @State private var phraseBatch: ExtractedPhrases?
     @State private var verbBatch: ExtractedVerbs?
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var isExtracting = false
+    /// Shown while extracting; the verb import changes it between its two steps.
+    @State private var progressTitle = ""
+    @State private var extractionStart = Date()
     @State private var errorMessage: String?
     @State private var savedMessage: String?
     @State private var batch: ExtractedBatch?
@@ -69,8 +75,15 @@ struct ImportView: View {
                     }
 
                     if isExtracting {
-                        ProgressView(extractingTitle)
-                            .padding()
+                        VStack(spacing: 6) {
+                            ProgressView(progressTitle)
+                            TimelineView(.periodic(from: extractionStart, by: 1)) { context in
+                                Text("\(Int(context.date.timeIntervalSince(extractionStart))) s")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
                     } else {
                         Button { showCamera = true } label: {
                             Label("Scatta una foto", systemImage: "camera")
@@ -121,7 +134,7 @@ struct ImportView: View {
                 }
             }
             .sheet(item: $verbBatch) { batch in
-                ReviewVerbsView(verbs: batch.verbs) { count in
+                ReviewVerbsView(verbs: batch.verbs, skipped: batch.skipped) { count in
                     savedMessage = count == 1 ? "1 verbo salvato" : "\(count) verbi salvati"
                 }
             }
@@ -158,7 +171,7 @@ struct ImportView: View {
         switch importKind {
         case .words: return "Estraggo le parole…"
         case .phrases: return "Estraggo le frasi…"
-        case .verbs: return "Estraggo i verbi…"
+        case .verbs: return "Cerco i verbi…"
         }
     }
 
@@ -203,6 +216,9 @@ struct ImportView: View {
         let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
         let kind = importKind
         let categories = kind == .phrases ? phrases.categories : words.categories
+        let savedVerbKeys = Set(verbs.map(\.dedupeKey))
+        progressTitle = extractingTitle
+        extractionStart = .now
         isExtracting = true
         Task { @MainActor in
             defer { isExtracting = false }
@@ -214,7 +230,18 @@ struct ImportView: View {
                 case .phrases:
                     phraseBatch = ExtractedPhrases(phrases: try await client.extractPhrases(fromJPEG: jpeg))
                 case .verbs:
-                    verbBatch = ExtractedVerbs(verbs: try await client.extractVerbs(fromJPEG: jpeg))
+                    // Infinitives first: only the verbs not yet saved get conjugated.
+                    let infinitives = try await client.extractVerbInfinitives(fromJPEG: jpeg)
+                    let missing = VerbExtractionPlan.missing(infinitives, existingKeys: savedVerbKeys)
+                    let skipped = infinitives.filter { !missing.contains($0) }
+                    guard !missing.isEmpty else {
+                        savedMessage = infinitives.count == 1
+                            ? "Il verbo della foto è già nel vocabolario"
+                            : "Tutti i \(infinitives.count) verbi della foto sono già nel vocabolario"
+                        return
+                    }
+                    progressTitle = missing.count == 1 ? "Coniugo 1 verbo nuovo…" : "Coniugo \(missing.count) verbi nuovi…"
+                    verbBatch = ExtractedVerbs(verbs: try await client.conjugateVerbs(missing), skipped: skipped)
                 }
             } catch {
                 errorMessage = error.localizedDescription

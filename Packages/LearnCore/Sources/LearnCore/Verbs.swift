@@ -278,17 +278,70 @@ public enum VerbExercises {
 
 // MARK: - Extraction
 
+/// Step 1 of a verb import: only the infinitives on the photo, a short and fast answer.
+public enum VerbListPrompt {
+    public static func system() -> String {
+        """
+        You help a learner of German. You receive a photo of a page from a German course: verb lists, \
+        conjugation tables, texts or exercises.
+
+        List the German verbs worth learning, as infinitives (also for verbs that only appear conjugated: \
+        "fährst" → "fahren", "stehe auf" → "aufstehen"). Reflexive verbs with "sich" ("sich waschen"). \
+        Correct obvious OCR mistakes. Return each verb once and nothing else.
+
+        Answer with JSON only, shaped as {"infinitives": ["fahren", "aufstehen"]}.
+        """
+    }
+
+    public static let userInstruction = "List the German verbs on this page as infinitives."
+
+    public static var responseSchema: [String: Any] {
+        let infinitives: [String: Any] = ["type": "array", "items": ["type": "string"]]
+        let properties: [String: Any] = ["infinitives": infinitives]
+        return ["type": "object", "properties": properties, "required": ["infinitives"], "additionalProperties": false]
+    }
+
+    /// Cleaned infinitives without duplicates; accepts the wrapped object or a bare array.
+    public static func parse(_ content: String) throws -> [String] {
+        guard let start = content.firstIndex(where: { $0 == "{" || $0 == "[" }),
+              let end = content.lastIndex(where: { $0 == "}" || $0 == "]" }),
+              start < end else {
+            throw ExtractionParser.ParseError.noJSON
+        }
+        let data = Data(String(content[start...end]).utf8)
+        let decoder = JSONDecoder()
+        let raws: [String]
+        if let wrapped = try? decoder.decode([String: [String]].self, from: data), let list = wrapped["infinitives"] {
+            raws = list
+        } else if let bare = try? decoder.decode([String].self, from: data) {
+            raws = bare
+        } else {
+            throw ExtractionParser.ParseError.invalidJSON
+        }
+        var seen = Set<String>()
+        return raws
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert(PhraseChecker.key($0)).inserted }
+    }
+}
+
+/// Which infinitives still need to be conjugated.
+public enum VerbExtractionPlan {
+    /// The infinitives not already among `existingKeys` (verb dedupe keys), in order.
+    public static func missing(_ infinitives: [String], existingKeys: Set<String>) -> [String] {
+        infinitives.filter { !existingKeys.contains(PhraseChecker.key($0)) }
+    }
+}
+
+/// Step 2 of a verb import: the present tense of the new infinitives only, without the photo.
 public enum VerbExtractionPrompt {
     public static func system() -> String {
         """
-        You help an English-speaking learner conjugate German verbs. You receive a photo of a page \
-        from a German course: verb lists, conjugation tables, texts or exercises.
-
-        Find the German verbs worth learning (including those only appearing conjugated: give their \
-        infinitive). Correct obvious OCR mistakes. Return each verb once.
+        You help an English-speaking learner conjugate German verbs. You receive a list of German \
+        infinitives. Return every verb of the list, once, keeping its infinitive.
 
         For each verb return:
-        - infinitive: e.g. "fahren", "aufstehen", "sich waschen".
+        - infinitive: as given, e.g. "fahren", "aufstehen", "sich waschen".
         - english: the most common English translation, without "to".
         - forms: the present tense (Präsens) exactly as written after the pronoun, in this order: \
         ich, du, er/sie/es, wir, ihr, sie/Sie. Separable verbs with the prefix at the end \
@@ -296,14 +349,16 @@ public enum VerbExtractionPrompt {
         - group: one of "modal", "separable", "reflexive", "irregular", "stemChanging", "regular" \
         (choose the first that applies in this order; sein, haben and werden are "irregular", \
         verbs changing vowel in du/er like fahren or sprechen are "stemChanging").
-        - note: in Italian, a short hint on what to watch out for (e.g. "a → ä con du ed er"), null if regular.
+        - note: in Italian, at most 8 words on what to watch out for (e.g. "a → ä con du ed er"), null if regular.
         - emoji: exactly ONE emoji that evokes the verb.
 
         Answer with JSON only, shaped as {"verbs": [ ... ]}.
         """
     }
 
-    public static let userInstruction = "Extract the German verbs on this page with their present tense."
+    public static func userInstruction(for infinitives: [String]) -> String {
+        "Conjugate in the present tense: " + infinitives.joined(separator: ", ")
+    }
 
     public static var responseSchema: [String: Any] {
         let string: [String: Any] = ["type": "string"]
