@@ -54,6 +54,17 @@ enum StudyMode: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Compact title for tiles.
+    func shortTitle(in area: StudyArea) -> String {
+        switch self {
+        case .mixed: return "Misto"
+        case .multipleChoice: return "Scelta multipla"
+        case .typeGerman: return area == .translation ? "Scrivi EN → DE" : "Scrivi"
+        case .typeEnglish: return "Scrivi DE → EN"
+        case .speakGerman: return "Pronuncia"
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .mixed: return "shuffle"
