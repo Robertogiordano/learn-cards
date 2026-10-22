@@ -7,6 +7,7 @@ struct PathView: View {
     @Environment(\.modelContext) private var context
     @Query private var words: [Word]
     @Query private var phrases: [Phrase]
+    @Query private var verbs: [Verb]
     @AppStorage(SettingsKey.lessonNewWords) private var lessonNewWords = 8
     @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
@@ -17,6 +18,8 @@ struct PathView: View {
     private static let bonusNumbers = 3
     /// Phrases already seen, mixed into every bonus.
     private static let bonusPhrases = 2
+    /// Verbs already seen, mixed into every bonus.
+    private static let bonusVerbs = 2
 
     var body: some View {
         NavigationStack {
@@ -43,9 +46,9 @@ struct PathView: View {
         let now = Date()
         let lesson = PathPlanner.lesson(pathWords, now: now, newLimit: lessonNewWords)
         let lessonBonus = PathPlanner.bonus(pathWords, now: now, limit: bonusSize, excluding: Set(lesson)).count
-            + Self.bonusNumbers + bonusPhraseIDs().count
+            + Self.bonusNumbers + bonusPhraseIDs().count + bonusVerbIDs().count
         let bonusOnly = PathPlanner.bonus(pathWords, now: now, limit: bonusSize).count + Self.bonusNumbers
-            + bonusPhraseIDs().count
+            + bonusPhraseIDs().count + bonusVerbIDs().count
         let focus = PathPlanner.focusTheme(pathWords)
         let emojis = Dictionary(words.map { ($0.category, $0.emoji) }, uniquingKeysWith: { first, _ in first })
 
@@ -71,7 +74,7 @@ struct PathView: View {
                 Text("Il bonus mescola tutto quello che hai già visto, in tutti i temi e gli esercizi: prima le parole da ripassare, poi quelle che sbagli più spesso.")
             }
 
-            Section("Numeri e frasi") {
+            Section("Numeri, frasi e verbi") {
                 NavigationLink {
                     NumbersView()
                 } label: {
@@ -81,6 +84,11 @@ struct PathView: View {
                     PhrasesView()
                 } label: {
                     PhrasesRow()
+                }
+                NavigationLink {
+                    VerbsView()
+                } label: {
+                    VerbsRow()
                 }
             }
 
@@ -104,7 +112,8 @@ struct PathView: View {
             let bonus = PathPlanner.bonus(pathWords, now: .now, limit: bonusSize, excluding: Set(lesson))
             let steps = lesson.map { SessionStep.word($0) } + bonusSteps(bonus, allowSpeaking: allowSpeaking)
             activeSession = StudySession(steps: steps, bonusFrom: lesson.count, allWords: words, allPhrases: phrases,
-                                         kindPolicy: .adaptive, allowSpeaking: allowSpeaking, context: context)
+                                         allVerbs: verbs, kindPolicy: .adaptive, allowSpeaking: allowSpeaking,
+                                         context: context)
         }
     }
 
@@ -113,7 +122,7 @@ struct PathView: View {
             let allowSpeaking = speakingInMixed ? await SpeechRecognizer.requestPermissions() : false
             let bonus = PathPlanner.bonus(words.map(\.pathWord), now: .now, limit: bonusSize)
             activeSession = StudySession(steps: bonusSteps(bonus, allowSpeaking: allowSpeaking), bonusFrom: 0,
-                                         allWords: words, allPhrases: phrases, kindPolicy: .adaptive,
+                                         allWords: words, allPhrases: phrases, allVerbs: verbs, kindPolicy: .adaptive,
                                          allowSpeaking: allowSpeaking, context: context)
         }
     }
@@ -129,12 +138,24 @@ struct PathView: View {
         return ranked.prefix(Self.bonusPhrases).map(\.id)
     }
 
+    /// Verbs already seen for the bonus: the due ones first, then the most missed.
+    private func bonusVerbIDs() -> [UUID] {
+        let seen = verbs.filter { !$0.srs.isNew }
+        let ranked = seen.sorted { lhs, rhs in
+            if lhs.isDue != rhs.isDue { return lhs.isDue }
+            if lhs.lapses != rhs.lapses { return lhs.lapses > rhs.lapses }
+            return lhs.dueDate < rhs.dueDate
+        }
+        return ranked.prefix(Self.bonusVerbs).map(\.id)
+    }
+
     /// Bonus words with a few number questions, at the level being trained, spread among them.
     private func bonusSteps(_ items: [StudyItem], allowSpeaking: Bool) -> [SessionStep] {
         let level = NumberLevel(rawValue: numbersLevelRaw) ?? .upTo20
         var steps = items.map { SessionStep.word($0) }
         let extras = NumberSteps.make(count: Self.bonusNumbers, level: level, kind: nil, allowSpeaking: allowSpeaking)
             + bonusPhraseIDs().map { SessionStep.phrase($0) }
+            + bonusVerbIDs().map { SessionStep.verb($0) }
         for extra in extras {
             steps.insert(extra, at: Int.random(in: 0...steps.count))
         }

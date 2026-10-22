@@ -7,7 +7,7 @@ struct LearnCardsApp: App {
         WindowGroup {
             RootView()
         }
-        .modelContainer(for: [Word.self, Phrase.self])
+        .modelContainer(for: [Word.self, Phrase.self, Verb.self])
     }
 }
 

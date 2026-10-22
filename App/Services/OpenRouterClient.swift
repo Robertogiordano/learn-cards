@@ -9,6 +9,7 @@ struct OpenRouterClient {
         case emptyResponse
         case noWords
         case noPhrases
+        case noVerbs
 
         var errorDescription: String? {
             switch self {
@@ -28,6 +29,8 @@ struct OpenRouterClient {
                 return "Nessuna parola tedesca trovata nella foto."
             case .noPhrases:
                 return "Nessuna frase tedesca trovata nella foto."
+            case .noVerbs:
+                return "Nessun verbo tedesco trovato nella foto."
             }
         }
     }
@@ -71,6 +74,19 @@ struct OpenRouterClient {
         let phrases = try PhraseExtractionParser.parse(content, existingCategories: existingCategories)
         guard !phrases.isEmpty else { throw ClientError.noPhrases }
         return phrases
+    }
+
+    /// Verbs with their present tense.
+    func extractVerbs(fromJPEG jpeg: Data) async throws -> [VerbEntry] {
+        let content = try await extract(jpeg: jpeg, request: Request(
+            system: VerbExtractionPrompt.system(),
+            instruction: VerbExtractionPrompt.userInstruction,
+            schemaName: "verbs",
+            schema: VerbExtractionPrompt.responseSchema
+        ))
+        let verbs = try VerbExtractionParser.parse(content)
+        guard !verbs.isEmpty else { throw ClientError.noVerbs }
+        return verbs
     }
 
     private func extract(jpeg: Data, request: Request) async throws -> String {

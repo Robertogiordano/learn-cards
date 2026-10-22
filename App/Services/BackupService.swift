@@ -9,20 +9,23 @@ struct PendingImport: Identifiable {
     let backup: Backup
     let merge: MergeResult
     let phraseMerge: PhraseMergeResult
+    let verbMerge: VerbMergeResult
 
-    /// New and updated items, words and phrases together.
-    var newCount: Int { merge.inserts.count + phraseMerge.inserts.count }
-    var updatedCount: Int { merge.updates.count + phraseMerge.updates.count }
+    /// New and updated items: words, phrases and verbs together.
+    var newCount: Int { merge.inserts.count + phraseMerge.inserts.count + verbMerge.inserts.count }
+    var updatedCount: Int { merge.updates.count + phraseMerge.updates.count + verbMerge.updates.count }
     var phraseCount: Int { backup.phrases?.count ?? 0 }
+    var verbCount: Int { backup.verbs?.count ?? 0 }
 }
 
 enum BackupService {
     @MainActor
-    static func exportData(words: [Word], phrases: [Phrase]) throws -> Data {
+    static func exportData(words: [Word], phrases: [Phrase], verbs: [Verb]) throws -> Data {
         let numbers = NumberStatsStore.shared.stats
         return try BackupCodec.encode(Backup(exportedAt: .now, words: words.map(\.backup),
                                              numbers: numbers.isEmpty ? nil : numbers,
-                                             phrases: phrases.map(\.backup)))
+                                             phrases: phrases.map(\.backup),
+                                             verbs: verbs.map(\.backup)))
     }
 
     static func defaultFilename(date: Date = .now) -> String {
@@ -32,19 +35,21 @@ enum BackupService {
         return "learncards-backup-\(formatter.string(from: date))"
     }
 
-    static func prepareImport(from url: URL, existing: [Word], existingPhrases: [Phrase]) throws -> PendingImport {
+    static func prepareImport(from url: URL, existing: [Word], existingPhrases: [Phrase],
+                              existingVerbs: [Verb]) throws -> PendingImport {
         let isScoped = url.startAccessingSecurityScopedResource()
         defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
         let backup = try BackupCodec.decode(Data(contentsOf: url))
         let merge = BackupMerger.merge(existing: existing.map(\.backup), incoming: backup.words)
         let phraseMerge = BackupPhraseMerger.merge(existing: existingPhrases.map(\.backup), incoming: backup.phrases ?? [])
-        return PendingImport(backup: backup, merge: merge, phraseMerge: phraseMerge)
+        let verbMerge = BackupVerbMerger.merge(existing: existingVerbs.map(\.backup), incoming: backup.verbs ?? [])
+        return PendingImport(backup: backup, merge: merge, phraseMerge: phraseMerge, verbMerge: verbMerge)
     }
 
     /// Number history is taken from the backup only when there is none on this phone.
     @MainActor
     static func applyMerge(_ pending: PendingImport, existing: [Word], existingPhrases: [Phrase],
-                           context: ModelContext) throws {
+                           existingVerbs: [Verb], context: ModelContext) throws {
         let byID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for word in pending.merge.updates {
             byID[word.id]?.apply(word)
@@ -59,6 +64,13 @@ enum BackupService {
         for phrase in pending.phraseMerge.inserts {
             context.insert(Phrase(backup: phrase))
         }
+        let verbsByID = Dictionary(existingVerbs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for verb in pending.verbMerge.updates {
+            verbsByID[verb.id]?.apply(verb)
+        }
+        for verb in pending.verbMerge.inserts {
+            context.insert(Verb(backup: verb))
+        }
         try context.save()
         if let numbers = pending.backup.numbers, NumberStatsStore.shared.stats.isEmpty {
             NumberStatsStore.shared.replace(with: numbers)
@@ -67,12 +79,15 @@ enum BackupService {
 
     @MainActor
     static func replaceAll(with backup: Backup, existing: [Word], existingPhrases: [Phrase],
-                           context: ModelContext) throws {
+                           existingVerbs: [Verb], context: ModelContext) throws {
         for word in existing {
             context.delete(word)
         }
         for phrase in existingPhrases {
             context.delete(phrase)
+        }
+        for verb in existingVerbs {
+            context.delete(verb)
         }
         try context.save()
         // Merging into nothing drops duplicates inside the file.
@@ -81,6 +96,9 @@ enum BackupService {
         }
         for phrase in BackupPhraseMerger.merge(existing: [], incoming: backup.phrases ?? []).inserts {
             context.insert(Phrase(backup: phrase))
+        }
+        for verb in BackupVerbMerger.merge(existing: [], incoming: backup.verbs ?? []).inserts {
+            context.insert(Verb(backup: verb))
         }
         try context.save()
         NumberStatsStore.shared.replace(with: backup.numbers ?? NumberStats())

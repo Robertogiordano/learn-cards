@@ -128,14 +128,17 @@ public struct Backup: Codable, Sendable {
     public var numbers: NumberStats?
     /// Sentences and idioms; absent in older backups.
     public var phrases: [BackupPhrase]?
+    /// Verbs and their present tense; absent in older backups.
+    public var verbs: [BackupVerb]?
 
     public init(schemaVersion: Int = Backup.currentSchemaVersion, exportedAt: Date, words: [BackupWord],
-                numbers: NumberStats? = nil, phrases: [BackupPhrase]? = nil) {
+                numbers: NumberStats? = nil, phrases: [BackupPhrase]? = nil, verbs: [BackupVerb]? = nil) {
         self.schemaVersion = schemaVersion
         self.exportedAt = exportedAt
         self.words = words
         self.numbers = numbers
         self.phrases = phrases
+        self.verbs = verbs
     }
 }
 

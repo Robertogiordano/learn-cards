@@ -32,6 +32,13 @@ struct SessionView: View {
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .id(phrase.id)
+                } else if let verb = session.verbQuestion {
+                    ScrollView {
+                        VerbExerciseView(question: verb, session: session)
+                            .padding()
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .id(verb.id)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

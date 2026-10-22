@@ -34,6 +34,14 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
   - pronuncia.
 
   Ogni esercizio ha la sua percentuale; "Automatico" va dal ricomporre allo scrivere e dire la frase; 2 frasi già viste entrano in ogni Bonus.
+- **Verbi** (sezione a parte): in Aggiungi scegli **Verbi**; il prompt dedicato estrae ogni verbo con il presente delle 6 persone (separabili con il prefisso in fondo, riflessivi con il pronome), il gruppo (regolari, cambio vocalico, irregolari, modali, separabili, riflessivi) e una nota su cosa fare attenzione. Esercizi:
+  - scegli la forma tra 4 (con errori tipici come *fahrst*);
+  - scrivi la forma;
+  - tabella completa;
+  - che persona è (le forme uguali, es. *macht* = er/ihr, valgono tutte);
+  - pronuncia "du fährst".
+
+  Percentuale per esercizio, filtro per gruppo, modalità automatica, 2 verbi già visti in ogni Bonus, elenco e modifica in Vocabolario (**Parole | Frasi | Verbi**).
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 
@@ -80,7 +88,7 @@ App/
 
 ## Backup
 
-Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, più le frasi e lo storico degli esercizi sui numeri, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
+Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, più frasi, verbi e lo storico degli esercizi sui numeri, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
 
 L'import offre due modalità:
 

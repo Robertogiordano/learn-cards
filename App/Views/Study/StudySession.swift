@@ -27,6 +27,27 @@ enum SessionStep: Hashable {
     case word(StudyItem)
     case number(NumberExercise)
     case phrase(UUID)
+    case verb(UUID)
+}
+
+/// How verb questions pick their kind of exercise.
+enum VerbPolicy {
+    case adaptive
+    case mixed
+    case fixed(VerbExerciseKind)
+}
+
+/// A verb question ready to show.
+struct VerbQuestion: Identifiable {
+    let id = UUID()
+    let kind: VerbExerciseKind
+    let entry: VerbEntry
+    /// The person asked (or, for whichPerson, the person whose form is shown).
+    let person: Person
+    /// Options for chooseForm.
+    let options: [String]
+
+    var form: String { entry.form(for: person) }
 }
 
 /// How phrase questions pick their kind of exercise.
@@ -62,6 +83,7 @@ final class StudySession: ObservableObject, Identifiable {
     @Published private(set) var exercise: Exercise?
     @Published private(set) var numberExercise: NumberExercise?
     @Published private(set) var phraseQuestion: PhraseQuestion?
+    @Published private(set) var verbQuestion: VerbQuestion?
     @Published private(set) var feedback: AnswerFeedback?
     @Published private(set) var isFinished = false
     @Published private(set) var results: [Verdict: Int] = [:]
@@ -84,6 +106,9 @@ final class StudySession: ObservableObject, Identifiable {
     private let phrasePolicy: PhrasePolicy
     /// State before grading the current phrase on its first attempt.
     private var phraseSnapshot: (srs: SRSState, streak: Int, kindStreak: Int)?
+    private let verbsByID: [UUID: Verb]
+    private let verbPolicy: VerbPolicy
+    private var verbSnapshot: (srs: SRSState, streak: Int, kindStreak: Int)?
     private let bonusSteps: Set<SessionStep>
     private let starsBefore: Set<EarnedStar>
     private var queue: [SessionStep]
@@ -113,16 +138,21 @@ final class StudySession: ObservableObject, Identifiable {
         bonusFrom: Int? = nil,
         allWords: [Word],
         allPhrases: [Phrase] = [],
+        allVerbs: [Verb] = [],
         kindPolicy: KindPolicy,
         phrasePolicy: PhrasePolicy = .adaptive,
+        verbPolicy: VerbPolicy = .adaptive,
         allowSpeaking: Bool,
         context: ModelContext
     ) {
         let wordsByID = Dictionary(allWords.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let phrasesByID = Dictionary(allPhrases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.wordsByID = wordsByID
+        let verbsByID = Dictionary(allVerbs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.phrasesByID = phrasesByID
         self.phrasePolicy = phrasePolicy
+        self.verbsByID = verbsByID
+        self.verbPolicy = verbPolicy
         phraseCategories = allPhrases.categories
         pool = allWords.map(\.entry)
         themes = allWords.categories
@@ -130,6 +160,7 @@ final class StudySession: ObservableObject, Identifiable {
             switch step {
             case .word(let item): return wordsByID[item.wordID] != nil
             case .phrase(let id): return phrasesByID[id] != nil
+            case .verb(let id): return verbsByID[id] != nil
             case .number: return true
             }
         }
@@ -210,6 +241,28 @@ final class StudySession: ObservableObject, Identifiable {
         feedback = AnswerFeedback(verdict: verdict, given: given)
     }
 
+    func submitVerb(_ verdict: Verdict, given: String) {
+        guard let verbQuestion, let currentStep, feedback == nil,
+              let verb = verbsByID[verbQuestion.entry.id] else { return }
+        if !graded.contains(currentStep) {
+            verbSnapshot = (verb.srs, verb.streak, verb.kindStreaks[verbQuestion.kind] ?? 0)
+            recordVerb(verdict, verb: verb, kind: verbQuestion.kind)
+            graded.insert(currentStep)
+            results[verdict, default: 0] += 1
+        }
+        if verdict == .wrong {
+            queue.append(currentStep)
+        }
+        feedback = AnswerFeedback(verdict: verdict, given: given)
+    }
+
+    /// Saves edits made from the feedback panel of a verb.
+    func updateVerb(_ entry: VerbEntry) {
+        guard let verb = verbsByID[entry.id] else { return }
+        verb.update(from: entry)
+        try? context.save()
+    }
+
     /// Saves edits made from the feedback panel of a phrase.
     func updatePhrase(_ entry: PhraseEntry) {
         guard let phrase = phrasesByID[entry.id] else { return }
@@ -220,7 +273,22 @@ final class StudySession: ObservableObject, Identifiable {
     /// The learner says the answer was right (synonym, recognizer mistake, ...).
     func overrideAsCorrect() {
         guard let feedback, feedback.verdict != .correct else { return }
-        if let phraseQuestion, let currentStep, let phrase = phrasesByID[phraseQuestion.entry.id] {
+        if let verbQuestion, let currentStep, let verb = verbsByID[verbQuestion.entry.id] {
+            if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
+                queue.remove(at: index)
+            }
+            if let verbSnapshot {
+                verb.srs = verbSnapshot.srs
+                verb.streak = verbSnapshot.streak
+                var streaks = verb.kindStreaks
+                streaks[verbQuestion.kind] = verbSnapshot.kindStreak
+                verb.kindStreaks = streaks
+                recordVerb(.correct, verb: verb, kind: verbQuestion.kind)
+                results[feedback.verdict, default: 0] -= 1
+                results[.correct, default: 0] += 1
+            }
+            self.feedback?.verdict = .correct
+        } else if let phraseQuestion, let currentStep, let phrase = phrasesByID[phraseQuestion.entry.id] {
             if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
                 queue.remove(at: index)
             }
@@ -302,7 +370,9 @@ final class StudySession: ObservableObject, Identifiable {
         feedback = nil
         snapshot = nil
         phraseSnapshot = nil
+        verbSnapshot = nil
         numberWasGraded = false
+        verbQuestion = nil
         guard !queue.isEmpty else {
             exercise = nil
             numberExercise = nil
@@ -334,6 +404,15 @@ final class StudySession: ObservableObject, Identifiable {
             exercise = nil
             numberExercise = nil
             phraseQuestion = makePhraseQuestion(for: phrase)
+        case .verb(let id):
+            guard let verb = verbsByID[id] else {
+                advance()
+                return
+            }
+            exercise = nil
+            numberExercise = nil
+            phraseQuestion = nil
+            verbQuestion = makeVerbQuestion(for: verb)
         }
         currentStep = step
         isInBonus = bonusSteps.contains(step)
@@ -391,6 +470,50 @@ final class StudySession: ObservableObject, Identifiable {
             tiles: kind == .reorder ? PhraseExercises.shuffledTiles(for: entry.german, using: &rng) : [],
             cloze: kind == .cloze ? PhraseExercises.cloze(for: entry.german) : nil
         )
+    }
+
+    private func makeVerbQuestion(for verb: Verb) -> VerbQuestion {
+        let entry = verb.entry
+        let kinds = VerbExerciseKind.allCases.filter { allowSpeaking || $0 != .speak }
+        let kind: VerbExerciseKind
+        switch verbPolicy {
+        case .adaptive:
+            kind = VerbExercises.kind(level: verb.streak, allowSpeaking: allowSpeaking, using: &rng)
+        case .mixed:
+            kind = kinds.randomElement(using: &rng) ?? .typeForm
+        case .fixed(let chosen):
+            kind = chosen
+        }
+        let person = Person.allCases.randomElement(using: &rng) ?? .ich
+        return VerbQuestion(
+            kind: kind,
+            entry: entry,
+            person: person,
+            options: kind == .chooseForm ? VerbExercises.options(for: entry, person: person, using: &rng) : []
+        )
+    }
+
+    private func recordVerb(_ verdict: Verdict, verb: Verb, kind: VerbExerciseKind) {
+        let now = Date()
+        if verb.srs.isDue(at: now) {
+            let recognition = kind == .chooseForm || kind == .whichPerson
+            let grade = ReviewGrade.from(verdict: verdict, kind: recognition ? .multipleChoice : .typeGerman,
+                                         responseTime: now.timeIntervalSince(shownAt))
+            verb.srs = SRS.review(verb.srs, grade: grade, now: now)
+        }
+        var streaks = verb.kindStreaks
+        switch verdict {
+        case .correct:
+            verb.streak += 1
+            streaks[kind, default: 0] += 1
+        case .almost:
+            break
+        case .wrong:
+            verb.streak = 0
+            streaks[kind] = 0
+        }
+        verb.kindStreaks = streaks
+        try? context.save()
     }
 
     private func recordPhrase(_ verdict: Verdict, phrase: Phrase, kind: PhraseExerciseKind) {

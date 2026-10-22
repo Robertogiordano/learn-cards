@@ -13,9 +13,14 @@ struct ExtractedPhrases: Identifiable {
     let phrases: [PhraseEntry]
 }
 
+struct ExtractedVerbs: Identifiable {
+    let id = UUID()
+    let verbs: [VerbEntry]
+}
+
 /// What a photo is uploaded for: each use case has its own specialised prompt.
 enum ImportKind: String, CaseIterable, Identifiable {
-    case words, phrases
+    case words, phrases, verbs
 
     var id: String { rawValue }
 
@@ -23,6 +28,7 @@ enum ImportKind: String, CaseIterable, Identifiable {
         switch self {
         case .words: return "Parole"
         case .phrases: return "Frasi"
+        case .verbs: return "Verbi"
         }
     }
 }
@@ -33,6 +39,7 @@ struct ImportView: View {
     @Query private var phrases: [Phrase]
     @AppStorage(SettingsKey.importKind) private var kindRaw = ImportKind.words.rawValue
     @State private var phraseBatch: ExtractedPhrases?
+    @State private var verbBatch: ExtractedVerbs?
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var isExtracting = false
@@ -62,7 +69,7 @@ struct ImportView: View {
                     }
 
                     if isExtracting {
-                        ProgressView(importKind == .words ? "Estraggo le parole…" : "Estraggo le frasi…")
+                        ProgressView(extractingTitle)
                             .padding()
                     } else {
                         Button { showCamera = true } label: {
@@ -113,6 +120,11 @@ struct ImportView: View {
                     savedMessage = count == 1 ? "1 parola salvata nel vocabolario" : "\(count) parole salvate nel vocabolario"
                 }
             }
+            .sheet(item: $verbBatch) { batch in
+                ReviewVerbsView(verbs: batch.verbs) { count in
+                    savedMessage = count == 1 ? "1 verbo salvato" : "\(count) verbi salvati"
+                }
+            }
             .sheet(item: $phraseBatch) { batch in
                 ReviewPhrasesView(phrases: batch.phrases) { count in
                     savedMessage = count == 1 ? "1 frase salvata" : "\(count) frasi salvate"
@@ -134,15 +146,32 @@ struct ImportView: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.secondary)
                 .padding(.top, 40)
-            Text(importKind == .words
-                 ? "Fotografa una pagina di esercizi: estraggo le parole da imparare, ognuna con la sua emoji."
-                 : "Fotografa frasi, modi di dire o esercizi come \"Wie heißt die Frage?\": estraggo le frasi, completo le parti mancanti e le raggruppo per categoria.")
+            Text(importHint)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
         }
     }
 
     private var importKind: ImportKind { ImportKind(rawValue: kindRaw) ?? .words }
+
+    private var extractingTitle: String {
+        switch importKind {
+        case .words: return "Estraggo le parole…"
+        case .phrases: return "Estraggo le frasi…"
+        case .verbs: return "Estraggo i verbi…"
+        }
+    }
+
+    private var importHint: String {
+        switch importKind {
+        case .words:
+            return "Fotografa una pagina di esercizi: estraggo le parole da imparare, ognuna con la sua emoji."
+        case .phrases:
+            return "Fotografa frasi, modi di dire o esercizi come \"Wie heißt die Frage?\": estraggo le frasi, completo le parti mancanti e le raggruppo per categoria."
+        case .verbs:
+            return "Fotografa una pagina con verbi (liste, tabelle, testi): estraggo ogni verbo con la coniugazione al presente."
+        }
+    }
 
     @MainActor
     private func load(_ item: PhotosPickerItem) async {
@@ -173,7 +202,7 @@ struct ImportView: View {
         }
         let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
         let kind = importKind
-        let categories = kind == .words ? words.categories : phrases.categories
+        let categories = kind == .phrases ? phrases.categories : words.categories
         isExtracting = true
         Task { @MainActor in
             defer { isExtracting = false }
@@ -184,6 +213,8 @@ struct ImportView: View {
                     batch = ExtractedBatch(entries: try await client.extractVocabulary(fromJPEG: jpeg))
                 case .phrases:
                     phraseBatch = ExtractedPhrases(phrases: try await client.extractPhrases(fromJPEG: jpeg))
+                case .verbs:
+                    verbBatch = ExtractedVerbs(verbs: try await client.extractVerbs(fromJPEG: jpeg))
                 }
             } catch {
                 errorMessage = error.localizedDescription

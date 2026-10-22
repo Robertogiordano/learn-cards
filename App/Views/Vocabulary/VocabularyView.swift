@@ -23,10 +23,10 @@ struct VocabularyView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if kindRaw == ImportKind.phrases.rawValue {
-                    PhrasesListView()
-                } else {
-                    WordsListView()
+                switch ImportKind(rawValue: kindRaw) ?? .words {
+                case .words: WordsListView()
+                case .phrases: PhrasesListView()
+                case .verbs: VerbsListView()
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -38,7 +38,7 @@ struct VocabularyView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 200)
+                    .frame(width: 260)
                 }
             }
         }
