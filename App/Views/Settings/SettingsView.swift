@@ -17,6 +17,8 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @AppStorage(SettingsKey.autoSpeak) private var autoSpeak = true
+    @AppStorage(SettingsKey.phraseImportWords) private var phraseImportWords = true
+    @AppStorage(SettingsKey.phraseImportVerbs) private var phraseImportVerbs = true
     @AppStorage(SettingsKey.lastExport) private var lastExport: Double = 0
 
     @State private var apiKey = ""
@@ -34,6 +36,7 @@ struct SettingsView: View {
                 apiSection
                 modelSection
                 studySection
+                importSection
                 backupSection
             }
             .navigationTitle("Impostazioni")
@@ -206,6 +209,17 @@ struct SettingsView: View {
             Stepper("Parole per sessione libera o tema: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
             Toggle("Pronuncia nel misto", isOn: $speakingInMixed)
             Toggle("Leggi ad alta voce la soluzione", isOn: $autoSpeak)
+        }
+    }
+
+    private var importSection: some View {
+        Section {
+            Toggle("Estrai anche le parole", isOn: $phraseImportWords)
+            Toggle("Estrai anche i verbi", isOn: $phraseImportVerbs)
+        } header: {
+            Text("Importazione frasi")
+        } footer: {
+            Text("Quando carichi frasi, dalla stessa foto estraggo anche parole e verbi. Con Parole o Verbi si estrae solo quello.")
         }
     }
 

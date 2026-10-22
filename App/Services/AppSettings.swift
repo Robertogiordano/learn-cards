@@ -21,6 +21,9 @@ enum SettingsKey {
     static let reminderEnabled = "reminderEnabled"
     /// Minutes after midnight.
     static let reminderMinutes = "reminderMinutes"
+    /// Importing phrases also extracts words / verbs from the same photo.
+    static let phraseImportWords = "phraseImportWords"
+    static let phraseImportVerbs = "phraseImportVerbs"
 }
 
 struct ModelOption: Identifiable {
