@@ -179,7 +179,7 @@ struct ThemeDetailView: View {
 }
 
 /// A way to train an area, with the percentage of its kind of exercise.
-private struct ExerciseTile: View {
+struct ExerciseTile: View {
     let title: String
     let systemImage: String
     /// nil for options that mix several kinds.

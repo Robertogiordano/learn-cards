@@ -144,9 +144,6 @@ struct SpeakingView: View {
     let isAnswered: Bool
     let onSubmit: (Verdict, String, @escaping AnswerRecheck) -> Void
 
-    @StateObject private var recognizer = SpeechRecognizer()
-    @State private var isEvaluating = false
-
     private var hint: String {
         switch exercise.area {
         case .translation: return "Tocca il microfono e parla"
@@ -154,6 +151,24 @@ struct SpeakingView: View {
         case .plural: return "Es. „die Tische“"
         }
     }
+
+    var body: some View {
+        SpeechAnswerView(hint: hint, isAnswered: isAnswered) { transcripts in
+            let area = exercise.area
+            let check: AnswerRecheck = { AnswerChecker.checkSpoken(transcripts, entry: $0, area: area) }
+            onSubmit(check(exercise.entry), transcripts.first ?? "—", check)
+        }
+    }
+}
+
+/// Microphone button with the live transcription; hands the candidate transcriptions over when done.
+struct SpeechAnswerView: View {
+    let hint: String
+    let isAnswered: Bool
+    let onFinish: ([String]) -> Void
+
+    @StateObject private var recognizer = SpeechRecognizer()
+    @State private var isEvaluating = false
 
     private var transcriptText: String {
         if let best = recognizer.transcripts.first { return best }
@@ -200,9 +215,7 @@ struct SpeakingView: View {
         Task { @MainActor in
             let transcripts = await recognizer.stop()
             isEvaluating = false
-            let area = exercise.area
-            let check: AnswerRecheck = { AnswerChecker.checkSpoken(transcripts, entry: $0, area: area) }
-            onSubmit(check(exercise.entry), transcripts.first ?? "—", check)
+            onFinish(transcripts)
         }
     }
 }

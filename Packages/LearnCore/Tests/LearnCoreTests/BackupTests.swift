@@ -80,6 +80,13 @@ final class BackupTests: XCTestCase {
         XCTAssertNil(decoded.streak(for: .article, kind: .typeGerman))
     }
 
+    func testRoundTripKeepsNumberStats() throws {
+        var numbers = NumberStats()
+        numbers.record(false, number: 13, level: .upTo20, kind: .listenChoice)
+        let decoded = try BackupCodec.decode(BackupCodec.encode(Backup(exportedAt: base, words: [], numbers: numbers)))
+        XCTAssertEqual(decoded.numbers, numbers)
+    }
+
     func testRejectsFutureVersion() throws {
         let future = Backup(schemaVersion: 99, exportedAt: base, words: [])
         XCTAssertThrowsError(try BackupCodec.decode(BackupCodec.encode(future))) { error in

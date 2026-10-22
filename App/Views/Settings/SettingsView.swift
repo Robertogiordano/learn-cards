@@ -66,7 +66,7 @@ struct SettingsView: View {
             ) { pending in
                 Button("Unisci: \(pending.merge.inserts.count) nuove, \(pending.merge.updates.count) aggiornate") {
                     run(success: "Import completato: \(pending.merge.inserts.count) nuove, \(pending.merge.updates.count) aggiornate.") {
-                        try BackupService.applyMerge(pending.merge, existing: words, context: context)
+                        try BackupService.applyMerge(pending, existing: words, context: context)
                     }
                 }
                 Button("Sostituisci tutto (\(pending.backup.words.count) parole)", role: .destructive) {

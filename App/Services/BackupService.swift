@@ -11,8 +11,11 @@ struct PendingImport: Identifiable {
 }
 
 enum BackupService {
+    @MainActor
     static func exportData(words: [Word]) throws -> Data {
-        try BackupCodec.encode(Backup(exportedAt: .now, words: words.map(\.backup)))
+        let numbers = NumberStatsStore.shared.stats
+        return try BackupCodec.encode(Backup(exportedAt: .now, words: words.map(\.backup),
+                                             numbers: numbers.isEmpty ? nil : numbers))
     }
 
     static func defaultFilename(date: Date = .now) -> String {
@@ -30,17 +33,23 @@ enum BackupService {
         return PendingImport(backup: backup, merge: merge)
     }
 
-    static func applyMerge(_ merge: MergeResult, existing: [Word], context: ModelContext) throws {
+    /// Number history is taken from the backup only when there is none on this phone.
+    @MainActor
+    static func applyMerge(_ pending: PendingImport, existing: [Word], context: ModelContext) throws {
         let byID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        for word in merge.updates {
+        for word in pending.merge.updates {
             byID[word.id]?.apply(word)
         }
-        for word in merge.inserts {
+        for word in pending.merge.inserts {
             context.insert(Word(backup: word))
         }
         try context.save()
+        if let numbers = pending.backup.numbers, NumberStatsStore.shared.stats.isEmpty {
+            NumberStatsStore.shared.replace(with: numbers)
+        }
     }
 
+    @MainActor
     static func replaceAll(with backup: Backup, existing: [Word], context: ModelContext) throws {
         for word in existing {
             context.delete(word)
@@ -51,6 +60,7 @@ enum BackupService {
             context.insert(Word(backup: word))
         }
         try context.save()
+        NumberStatsStore.shared.replace(with: backup.numbers ?? NumberStats())
     }
 }
 

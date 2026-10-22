@@ -18,6 +18,13 @@ struct SessionView: View {
                     .scrollDismissesKeyboard(.interactively)
                     // A fresh view per exercise resets typed text and selections.
                     .id(exercise.id)
+                } else if let number = session.numberExercise {
+                    ScrollView {
+                        NumberExerciseView(exercise: number, session: session)
+                            .padding()
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .id(number.id)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -44,18 +51,7 @@ struct ExerciseView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            if session.isBonusStart {
-                Label("Bonus: ripasso di tutto quello che hai visto", systemImage: "gift.fill")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(Color.accentColor))
-            } else if session.isInBonus {
-                Label("Bonus", systemImage: "gift")
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.accentColor)
-            }
+            BonusBanner(session: session)
 
             PromptCard(exercise: exercise, isAnswered: isAnswered)
 
@@ -90,6 +86,26 @@ struct ExerciseView: View {
                     onContinue: session.advance
                 )
             }
+        }
+    }
+}
+
+/// Announces the bonus part on its first question, then marks its questions.
+struct BonusBanner: View {
+    @ObservedObject var session: StudySession
+
+    var body: some View {
+        if session.isBonusStart {
+            Label("Bonus: ripasso di tutto quello che hai visto", systemImage: "gift.fill")
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color.accentColor))
+        } else if session.isInBonus {
+            Label("Bonus", systemImage: "gift")
+                .font(.caption.bold())
+                .foregroundStyle(Color.accentColor)
         }
     }
 }

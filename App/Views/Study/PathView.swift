@@ -9,7 +9,11 @@ struct PathView: View {
     @AppStorage(SettingsKey.lessonNewWords) private var lessonNewWords = 8
     @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
+    @AppStorage(SettingsKey.numbersLevel) private var numbersLevelRaw = NumberLevel.upTo20.rawValue
     @State private var activeSession: StudySession?
+
+    /// Number questions mixed into every bonus.
+    private static let bonusNumbers = 3
 
     var body: some View {
         NavigationStack {
@@ -36,7 +40,8 @@ struct PathView: View {
         let now = Date()
         let lesson = PathPlanner.lesson(pathWords, now: now, newLimit: lessonNewWords)
         let lessonBonus = PathPlanner.bonus(pathWords, now: now, limit: bonusSize, excluding: Set(lesson)).count
-        let bonusOnly = PathPlanner.bonus(pathWords, now: now, limit: bonusSize).count
+            + Self.bonusNumbers
+        let bonusOnly = PathPlanner.bonus(pathWords, now: now, limit: bonusSize).count + Self.bonusNumbers
         let focus = PathPlanner.focusTheme(pathWords)
         let emojis = Dictionary(words.map { ($0.category, $0.emoji) }, uniquingKeysWith: { first, _ in first })
 
@@ -62,6 +67,14 @@ struct PathView: View {
                 Text("Il bonus mescola tutto quello che hai già visto, in tutti i temi e gli esercizi: prima le parole da ripassare, poi quelle che sbagli più spesso.")
             }
 
+            Section("Numeri") {
+                NavigationLink {
+                    NumbersView()
+                } label: {
+                    NumbersRow()
+                }
+            }
+
             Section("Temi") {
                 ForEach(PathPlanner.themeProgress(pathWords)) { progress in
                     NavigationLink {
@@ -80,8 +93,8 @@ struct PathView: View {
             let pathWords = words.map(\.pathWord)
             let lesson = PathPlanner.lesson(pathWords, now: .now, newLimit: lessonNewWords)
             let bonus = PathPlanner.bonus(pathWords, now: .now, limit: bonusSize, excluding: Set(lesson))
-            guard !(lesson + bonus).isEmpty else { return }
-            activeSession = StudySession(items: lesson + bonus, bonusFrom: lesson.count, allWords: words,
+            let steps = lesson.map { SessionStep.word($0) } + bonusSteps(bonus, allowSpeaking: allowSpeaking)
+            activeSession = StudySession(steps: steps, bonusFrom: lesson.count, allWords: words,
                                          kindPolicy: .adaptive, allowSpeaking: allowSpeaking, context: context)
         }
     }
@@ -90,10 +103,20 @@ struct PathView: View {
         Task { @MainActor in
             let allowSpeaking = speakingInMixed ? await SpeechRecognizer.requestPermissions() : false
             let bonus = PathPlanner.bonus(words.map(\.pathWord), now: .now, limit: bonusSize)
-            guard !bonus.isEmpty else { return }
-            activeSession = StudySession(items: bonus, bonusFrom: 0, allWords: words,
-                                         kindPolicy: .adaptive, allowSpeaking: allowSpeaking, context: context)
+            activeSession = StudySession(steps: bonusSteps(bonus, allowSpeaking: allowSpeaking), bonusFrom: 0,
+                                         allWords: words, kindPolicy: .adaptive, allowSpeaking: allowSpeaking,
+                                         context: context)
         }
+    }
+
+    /// Bonus words with a few number questions, at the level being trained, spread among them.
+    private func bonusSteps(_ items: [StudyItem], allowSpeaking: Bool) -> [SessionStep] {
+        let level = NumberLevel(rawValue: numbersLevelRaw) ?? .upTo20
+        var steps = items.map { SessionStep.word($0) }
+        for number in NumberSteps.make(count: Self.bonusNumbers, level: level, kind: nil, allowSpeaking: allowSpeaking) {
+            steps.insert(number, at: Int.random(in: 0...steps.count))
+        }
+        return steps
     }
 }
 

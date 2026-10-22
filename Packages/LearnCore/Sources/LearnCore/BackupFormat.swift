@@ -124,11 +124,15 @@ public struct Backup: Codable, Sendable {
     public var schemaVersion: Int
     public var exportedAt: Date
     public var words: [BackupWord]
+    /// Number practice history; absent in older backups.
+    public var numbers: NumberStats?
 
-    public init(schemaVersion: Int = Backup.currentSchemaVersion, exportedAt: Date, words: [BackupWord]) {
+    public init(schemaVersion: Int = Backup.currentSchemaVersion, exportedAt: Date, words: [BackupWord],
+                numbers: NumberStats? = nil) {
         self.schemaVersion = schemaVersion
         self.exportedAt = exportedAt
         self.words = words
+        self.numbers = numbers
     }
 }
 
