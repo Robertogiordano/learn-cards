@@ -8,6 +8,9 @@ struct SettingsView: View {
     @Query private var words: [Word]
     @Query private var phrases: [Phrase]
     @Query private var verbs: [Verb]
+    @AppStorage(SettingsKey.dailyGoalMinutes) private var goalMinutes = 0
+    @AppStorage(SettingsKey.reminderEnabled) private var reminderEnabled = false
+    @AppStorage(SettingsKey.reminderMinutes) private var reminderMinutes = 18 * 60
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
     @AppStorage(SettingsKey.sessionSize) private var sessionSize = 20
     @AppStorage(SettingsKey.lessonNewWords) private var lessonNewWords = 8
@@ -27,6 +30,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                goalSection
                 apiSection
                 modelSection
                 studySection
@@ -144,6 +148,55 @@ struct SettingsView: View {
         } footer: {
             Text("Serve un modello che accetti immagini. Puoi incollare qualsiasi id da openrouter.ai/models.")
         }
+    }
+
+    private var goalSection: some View {
+        Section {
+            Picker("Obiettivo giornaliero", selection: $goalMinutes) {
+                Text("Nessuno").tag(0)
+                ForEach([5, 10, 15, 20], id: \.self) { minutes in
+                    Text("\(minutes) min").tag(minutes)
+                }
+            }
+            Toggle("Promemoria", isOn: $reminderEnabled)
+            if reminderEnabled {
+                DatePicker("Ora del promemoria", selection: reminderTime, displayedComponents: .hourAndMinute)
+            }
+        } header: {
+            Text("Obiettivo")
+        } footer: {
+            Text("La lezione del giorno dura quanto l'obiettivo. Il promemoria arriva solo nei giorni in cui non l'hai ancora raggiunto.")
+        }
+        .onChange(of: goalMinutes) { _, _ in
+            refreshLocalLesson()
+            ReminderScheduler.reschedule()
+        }
+        .onChange(of: reminderEnabled) { _, enabled in
+            Task { @MainActor in
+                if enabled, !(await ReminderScheduler.requestAuthorization()) {
+                    reminderEnabled = false
+                    message = "Per i promemoria consenti le notifiche in Impostazioni > LearnCards."
+                }
+                ReminderScheduler.reschedule()
+            }
+        }
+        .onChange(of: reminderMinutes) { _, _ in ReminderScheduler.reschedule() }
+    }
+
+    private var reminderTime: Binding<Date> {
+        Binding(
+            get: { Calendar.current.date(byAdding: .minute, value: reminderMinutes, to: Calendar.current.startOfDay(for: .now)) ?? .now },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                reminderMinutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            }
+        )
+    }
+
+    /// A new goal resizes today's local lesson, if it has not been started.
+    private func refreshLocalLesson() {
+        guard let lesson = LessonStore.shared.today, !lesson.fromCoach, lesson.done.isEmpty else { return }
+        LessonStore.shared.replace(with: DailyLessonBuilder.local(words: words, phrases: phrases, verbs: verbs))
     }
 
     private var studySection: some View {

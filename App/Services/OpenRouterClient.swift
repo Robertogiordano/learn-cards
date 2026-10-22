@@ -89,7 +89,18 @@ struct OpenRouterClient {
         return verbs
     }
 
-    private func extract(jpeg: Data, request: Request) async throws -> String {
+    /// Today's lesson plan from the learner's summary (text only, no photo).
+    func coachPlan(summary: CoachSummary) async throws -> CoachPlan {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: CoachPrompt.system(),
+            instruction: summary.json(),
+            schemaName: "lesson",
+            schema: CoachPrompt.responseSchema
+        ))
+        return try CoachPrompt.parse(content)
+    }
+
+    private func extract(jpeg: Data?, request: Request) async throws -> String {
         guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
         do {
             return try await complete(jpeg: jpeg, request: request, structured: true)
@@ -99,7 +110,7 @@ struct OpenRouterClient {
         }
     }
 
-    private func complete(jpeg: Data, request extraction: Request, structured: Bool) async throws -> String {
+    private func complete(jpeg: Data?, request extraction: Request, structured: Bool) async throws -> String {
         var request = URLRequest(url: Self.endpoint, timeoutInterval: 120)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -108,12 +119,16 @@ struct OpenRouterClient {
         request.setValue("LearnCards", forHTTPHeaderField: "X-Title")
 
         let textPart: [String: Any] = ["type": "text", "text": extraction.instruction]
-        let imagePart: [String: Any] = [
-            "type": "image_url",
-            "image_url": ["url": "data:image/jpeg;base64,\(jpeg.base64EncodedString())"],
-        ]
+        var parts = [textPart]
+        if let jpeg {
+            let imagePart: [String: Any] = [
+                "type": "image_url",
+                "image_url": ["url": "data:image/jpeg;base64,\(jpeg.base64EncodedString())"],
+            ]
+            parts.append(imagePart)
+        }
         let systemMessage: [String: Any] = ["role": "system", "content": extraction.system]
-        let userMessage: [String: Any] = ["role": "user", "content": [textPart, imagePart]]
+        let userMessage: [String: Any] = ["role": "user", "content": parts]
         var body: [String: Any] = [
             "model": model,
             "temperature": 0.2,

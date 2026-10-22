@@ -25,7 +25,8 @@ enum BackupService {
         return try BackupCodec.encode(Backup(exportedAt: .now, words: words.map(\.backup),
                                              numbers: numbers.isEmpty ? nil : numbers,
                                              phrases: phrases.map(\.backup),
-                                             verbs: verbs.map(\.backup)))
+                                             verbs: verbs.map(\.backup),
+                                             activity: ActivityStore.shared.stats))
     }
 
     static func defaultFilename(date: Date = .now) -> String {
@@ -75,6 +76,9 @@ enum BackupService {
         if let numbers = pending.backup.numbers, NumberStatsStore.shared.stats.isEmpty {
             NumberStatsStore.shared.replace(with: numbers)
         }
+        if let activity = pending.backup.activity {
+            ActivityStore.shared.merge(activity)
+        }
     }
 
     @MainActor
@@ -102,6 +106,7 @@ enum BackupService {
         }
         try context.save()
         NumberStatsStore.shared.replace(with: backup.numbers ?? NumberStats())
+        ActivityStore.shared.replace(with: backup.activity ?? ActivityStats())
     }
 }
 

@@ -130,15 +130,19 @@ public struct Backup: Codable, Sendable {
     public var phrases: [BackupPhrase]?
     /// Verbs and their present tense; absent in older backups.
     public var verbs: [BackupVerb]?
+    /// Daily study time and recent mistakes; absent in older backups.
+    public var activity: ActivityStats?
 
     public init(schemaVersion: Int = Backup.currentSchemaVersion, exportedAt: Date, words: [BackupWord],
-                numbers: NumberStats? = nil, phrases: [BackupPhrase]? = nil, verbs: [BackupVerb]? = nil) {
+                numbers: NumberStats? = nil, phrases: [BackupPhrase]? = nil, verbs: [BackupVerb]? = nil,
+                activity: ActivityStats? = nil) {
         self.schemaVersion = schemaVersion
         self.exportedAt = exportedAt
         self.words = words
         self.numbers = numbers
         self.phrases = phrases
         self.verbs = verbs
+        self.activity = activity
     }
 }
 

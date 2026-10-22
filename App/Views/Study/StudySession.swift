@@ -122,6 +122,21 @@ final class StudySession: ObservableObject, Identifiable {
                            timesCorrect: Int, timesWrong: Int)?
     private var shownAt = Date()
     private var rng = SystemRandomNumberGenerator()
+    /// Kinds of exercise chosen by a lesson, as raw values, per step.
+    private let kindOverrides: [SessionStep: String]
+    /// When the current feedback appeared: reading it counts as active time too.
+    private var feedbackShownAt: Date?
+    /// The mistake logged for the current question, taken back by "I was right".
+    private var loggedMistake: ErrorRecord?
+
+    /// Answer time beyond this is a pause, not study.
+    private static let maximumAnswerSeconds: TimeInterval = 60
+    private static let maximumFeedbackSeconds: TimeInterval = 20
+
+    /// Called once per question, on its first answer (lesson progress).
+    var onStepGraded: ((SessionStep) -> Void)?
+    /// A daily lesson: the summary asks how it went.
+    var isLesson = false
 
     var completed: Int { graded.count }
 
@@ -142,9 +157,11 @@ final class StudySession: ObservableObject, Identifiable {
         kindPolicy: KindPolicy,
         phrasePolicy: PhrasePolicy = .adaptive,
         verbPolicy: VerbPolicy = .adaptive,
+        kindOverrides: [SessionStep: String] = [:],
         allowSpeaking: Bool,
         context: ModelContext
     ) {
+        self.kindOverrides = kindOverrides
         let wordsByID = Dictionary(allWords.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let phrasesByID = Dictionary(allPhrases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.wordsByID = wordsByID
@@ -196,6 +213,11 @@ final class StudySession: ObservableObject, Identifiable {
     func submit(_ verdict: Verdict, given: String, recheck: AnswerRecheck? = nil) {
         guard let exercise, let currentStep, let current, feedback == nil,
               let word = wordsByID[current.wordID] else { return }
+        afterSubmit(first: !graded.contains(currentStep), verdict: verdict) {
+            ErrorRecord(date: .now, domain: .word, itemID: word.id,
+                        exercise: "\(current.area.rawValue).\(exercise.kind.rawValue)",
+                        prompt: exercise.prompt, given: given, expected: exercise.expectedAnswer, theme: word.category)
+        }
 
         // Only the first attempt counts; repeats after a mistake are practice.
         if !graded.contains(currentStep) {
@@ -213,6 +235,12 @@ final class StudySession: ObservableObject, Identifiable {
 
     func submitNumber(_ verdict: Verdict, given: String) {
         guard let numberExercise, let currentStep, feedback == nil else { return }
+        afterSubmit(first: !graded.contains(currentStep), verdict: verdict) {
+            ErrorRecord(date: .now, domain: .number, itemID: nil,
+                        exercise: "number.\(numberExercise.kind.rawValue)",
+                        prompt: numberExercise.kind.isListening ? "🔊 \(numberExercise.digits)" : numberExercise.digits,
+                        given: given, expected: "\(numberExercise.digits) (\(numberExercise.words))", theme: nil)
+        }
         if !graded.contains(currentStep) {
             NumberStatsStore.shared.record(verdict == .correct, number: numberExercise.number,
                                            level: numberExercise.level, kind: numberExercise.kind)
@@ -229,6 +257,15 @@ final class StudySession: ObservableObject, Identifiable {
     func submitPhrase(_ verdict: Verdict, given: String) {
         guard let phraseQuestion, let currentStep, feedback == nil,
               let phrase = phrasesByID[phraseQuestion.entry.id] else { return }
+        afterSubmit(first: !graded.contains(currentStep), verdict: verdict) {
+            let entry = phraseQuestion.entry
+            return ErrorRecord(date: .now, domain: .phrase, itemID: entry.id,
+                               exercise: "phrase.\(phraseQuestion.kind.rawValue)",
+                               prompt: phraseQuestion.kind == .questionFromAnswer ? (entry.response ?? entry.english) : entry.english,
+                               given: given,
+                               expected: phraseQuestion.kind == .cloze ? (phraseQuestion.cloze?.answer ?? entry.german) : entry.german,
+                               theme: entry.category)
+        }
         if !graded.contains(currentStep) {
             phraseSnapshot = (phrase.srs, phrase.streak, phrase.kindStreaks[phraseQuestion.kind] ?? 0)
             recordPhrase(verdict, phrase: phrase, kind: phraseQuestion.kind)
@@ -244,6 +281,22 @@ final class StudySession: ObservableObject, Identifiable {
     func submitVerb(_ verdict: Verdict, given: String) {
         guard let verbQuestion, let currentStep, feedback == nil,
               let verb = verbsByID[verbQuestion.entry.id] else { return }
+        afterSubmit(first: !graded.contains(currentStep), verdict: verdict) {
+            let entry = verbQuestion.entry
+            let expected: String
+            switch verbQuestion.kind {
+            case .translateEnglish: expected = entry.english
+            case .translateChoice, .translateGerman, .translateSpeak: expected = entry.infinitive
+            case .fullTable: expected = entry.forms.joined(separator: ", ")
+            case .whichPerson: expected = entry.persons(with: verbQuestion.form).map(\.label).joined(separator: " / ")
+            default: expected = "\(verbQuestion.person.pronoun) \(verbQuestion.form)"
+            }
+            let prompt = verbQuestion.kind.isTranslation
+                ? (verbQuestion.kind == .translateEnglish ? entry.infinitive : entry.english)
+                : "\(verbQuestion.person.label) · \(entry.infinitive)"
+            return ErrorRecord(date: .now, domain: .verb, itemID: entry.id, exercise: "verb.\(verbQuestion.kind.rawValue)",
+                               prompt: prompt, given: given, expected: expected, theme: entry.group.label)
+        }
         if !graded.contains(currentStep) {
             verbSnapshot = (verb.srs, verb.streak, verb.kindStreaks[verbQuestion.kind] ?? 0)
             recordVerb(verdict, verb: verb, kind: verbQuestion.kind)
@@ -273,6 +326,10 @@ final class StudySession: ObservableObject, Identifiable {
     /// The learner says the answer was right (synonym, recognizer mistake, ...).
     func overrideAsCorrect() {
         guard let feedback, feedback.verdict != .correct else { return }
+        if let loggedMistake {
+            ActivityStore.shared.removeLastError(itemID: loggedMistake.itemID, exercise: loggedMistake.exercise)
+            self.loggedMistake = nil
+        }
         if let verbQuestion, let currentStep, let verb = verbsByID[verbQuestion.entry.id] {
             if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
                 queue.remove(at: index)
@@ -367,6 +424,11 @@ final class StudySession: ObservableObject, Identifiable {
     }
 
     func advance() {
+        if let feedbackShownAt {
+            ActivityStore.shared.addActive(seconds: min(Date().timeIntervalSince(feedbackShownAt), Self.maximumFeedbackSeconds))
+            self.feedbackShownAt = nil
+        }
+        loggedMistake = nil
         feedback = nil
         snapshot = nil
         phraseSnapshot = nil
@@ -390,7 +452,7 @@ final class StudySession: ObservableObject, Identifiable {
             }
             numberExercise = nil
             phraseQuestion = nil
-            exercise = ExerciseBuilder.make(area: item.area, kind: kind(for: item, word: word),
+            exercise = ExerciseBuilder.make(area: item.area, kind: forcedWordKind(step, area: item.area) ?? kind(for: item, word: word),
                                             entry: word.entry, pool: pool, using: &rng)
         case .number(let question):
             exercise = nil
@@ -403,7 +465,7 @@ final class StudySession: ObservableObject, Identifiable {
             }
             exercise = nil
             numberExercise = nil
-            phraseQuestion = makePhraseQuestion(for: phrase)
+            phraseQuestion = makePhraseQuestion(for: phrase, forced: kindOverrides[step].flatMap(PhraseExerciseKind.init(rawValue:)))
         case .verb(let id):
             guard let verb = verbsByID[id] else {
                 advance()
@@ -412,7 +474,7 @@ final class StudySession: ObservableObject, Identifiable {
             exercise = nil
             numberExercise = nil
             phraseQuestion = nil
-            verbQuestion = makeVerbQuestion(for: verb)
+            verbQuestion = makeVerbQuestion(for: verb, forced: kindOverrides[step].flatMap(VerbExerciseKind.init(rawValue:)))
         }
         currentStep = step
         isInBonus = bonusSteps.contains(step)
@@ -450,13 +512,37 @@ final class StudySession: ObservableObject, Identifiable {
         try? context.save()
     }
 
-    private func makePhraseQuestion(for phrase: Phrase) -> PhraseQuestion {
+    /// Active time, mistakes and lesson progress, the same for every kind of question.
+    private func afterSubmit(first: Bool, verdict: Verdict, mistake: () -> ErrorRecord) {
+        let now = Date()
+        ActivityStore.shared.addActive(seconds: min(now.timeIntervalSince(shownAt), Self.maximumAnswerSeconds))
+        feedbackShownAt = now
+        guard first, let currentStep else { return }
+        if verdict != .correct {
+            let record = mistake()
+            ActivityStore.shared.log(record)
+            loggedMistake = record
+        }
+        onStepGraded?(currentStep)
+    }
+
+    /// A lesson's kind for a word, when it exists for the area and can be done now.
+    private func forcedWordKind(_ step: SessionStep, area: StudyArea) -> ExerciseKind? {
+        guard let raw = kindOverrides[step], let kind = ExerciseKind(rawValue: raw),
+              area.kinds.contains(kind), allowSpeaking || kind != .speakGerman else { return nil }
+        return kind
+    }
+
+    private func makePhraseQuestion(for phrase: Phrase, forced: PhraseExerciseKind? = nil) -> PhraseQuestion {
         let entry = phrase.entry
         let applicable = PhraseExerciseKind.allCases.filter {
             $0.isApplicable(to: entry) && (allowSpeaking || $0 != .speak)
         }
         let kind: PhraseExerciseKind
-        switch phrasePolicy {
+        let policy: PhrasePolicy = forced.map { forced in
+            forced.isApplicable(to: entry) && (allowSpeaking || forced != .speak) ? .fixed(forced) : phrasePolicy
+        } ?? phrasePolicy
+        switch policy {
         case .adaptive:
             kind = PhraseExercises.kind(level: phrase.streak, entry: entry, allowSpeaking: allowSpeaking, using: &rng)
         case .mixed:
@@ -472,11 +558,12 @@ final class StudySession: ObservableObject, Identifiable {
         )
     }
 
-    private func makeVerbQuestion(for verb: Verb) -> VerbQuestion {
+    private func makeVerbQuestion(for verb: Verb, forced: VerbExerciseKind? = nil) -> VerbQuestion {
         let entry = verb.entry
         let kinds = VerbExerciseKind.allCases.filter { allowSpeaking || !$0.isSpeaking }
         var kind: VerbExerciseKind
-        switch verbPolicy {
+        let policy: VerbPolicy = forced.map { allowSpeaking || !$0.isSpeaking ? .fixed($0) : verbPolicy } ?? verbPolicy
+        switch policy {
         case .adaptive:
             kind = VerbExercises.kind(level: verb.streak, allowSpeaking: allowSpeaking, using: &rng)
         case .mixed:

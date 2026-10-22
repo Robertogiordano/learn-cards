@@ -17,6 +17,10 @@ enum SettingsKey {
     static let speakingInMixed = "speakingInMixed"
     static let autoSpeak = "autoSpeak"
     static let lastExport = "lastExportDate"
+    static let dailyGoalMinutes = "dailyGoalMinutes"
+    static let reminderEnabled = "reminderEnabled"
+    /// Minutes after midnight.
+    static let reminderMinutes = "reminderMinutes"
 }
 
 struct ModelOption: Identifiable {

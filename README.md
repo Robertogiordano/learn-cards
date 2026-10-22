@@ -43,6 +43,10 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
   - giochi di traduzione come per le parole: scegli il verbo tedesco, scrivi EN → DE (con o senza «sich»), scrivi DE → EN, pronuncia l'infinito.
 
   Percentuale per esercizio e per gruppo (Traduzione / Coniugazione), filtro per gruppo, modalità automatica, 2 verbi già visti in ogni Bonus, elenco e modifica in Vocabolario (**Parole | Frasi | Verbi**).
+- **Obiettivo giornaliero e lezione del giorno** (in cima alla scheda Studia):
+  - scegli 5, 10, 15 o 20 minuti al giorno; conta il **tempo attivo** negli esercizi (pause lunghe escluse), con anello di avanzamento, **serie di giorni** (un giorno saltato a settimana è perdonato), **storico** a 7/30 giorni e **promemoria** locale solo nei giorni in cui l'obiettivo non è ancora raggiunto;
+  - ogni giorno l'app prepara in locale una **lezione** della durata dell'obiettivo: i tuoi errori recenti (registrati con risposta data e risposta giusta), due temi in focus che ruotano, il ripasso in scadenza, qualche novità e un po' di numeri. Si riprende da dove l'hai lasciata e alla fine chiede "troppo facile / giusta / troppo difficile" per regolare le lezioni successive;
+  - **Chiedi al coach** (su richiesta, OpenRouter): scrivi cosa vuoi oggi ("domani ho una verifica sui separabili"); il coach riceve un riassunto dei tuoi progressi ed errori e assembla la lezione **solo con il tuo materiale**, con un breve messaggio sul perché.
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 
@@ -89,7 +93,7 @@ App/
 
 ## Backup
 
-Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, più frasi, verbi e lo storico degli esercizi sui numeri, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
+Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, più frasi, verbi, lo storico degli esercizi sui numeri, il tempo di studio e gli errori recenti, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
 
 L'import offre due modalità:
 

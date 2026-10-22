@@ -334,6 +334,9 @@ struct SessionSummaryView: View {
                 .padding()
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
+            if session.isLesson {
+                LessonFeedback()
+            }
             Button("Fine", action: onDone)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -348,5 +351,34 @@ struct SessionSummaryView: View {
             Spacer(minLength: 40)
             Text("\(count)").bold()
         }
+    }
+}
+
+/// "How was it?": tunes the next local lessons.
+private struct LessonFeedback: View {
+    @State private var answered = false
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(answered ? "Grazie! Ne terrò conto domani." : "Com'è andata la lezione?")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if !answered {
+                HStack {
+                    button("Troppo facile", change: 1)
+                    button("Giusta", change: 0)
+                    button("Troppo difficile", change: -1)
+                }
+            }
+        }
+    }
+
+    private func button(_ title: String, change: Int) -> some View {
+        Button(title) {
+            LessonStore.shared.recordFeedback(change)
+            answered = true
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 }

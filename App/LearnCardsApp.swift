@@ -12,6 +12,8 @@ struct LearnCardsApp: App {
 }
 
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         TabView {
             PathView()
@@ -22,6 +24,10 @@ struct RootView: View {
                 .tabItem { Label("Aggiungi", systemImage: "camera") }
             SettingsView()
                 .tabItem { Label("Impostazioni", systemImage: "gearshape") }
+        }
+        // Reminders are planned a week ahead: refresh them whenever the app comes back.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { ReminderScheduler.reschedule() }
         }
     }
 }

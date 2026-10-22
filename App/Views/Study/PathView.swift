@@ -13,6 +13,8 @@ struct PathView: View {
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @AppStorage(SettingsKey.numbersLevel) private var numbersLevelRaw = NumberLevel.upTo20.rawValue
     @State private var activeSession: StudySession?
+    @State private var isAskingCoach = false
+    @ObservedObject private var lessons = LessonStore.shared
 
     /// Number questions mixed into every bonus.
     private static let bonusNumbers = 3
@@ -38,6 +40,13 @@ struct PathView: View {
             .fullScreenCover(item: $activeSession) { session in
                 SessionView(session: session)
             }
+            .sheet(isPresented: $isAskingCoach) {
+                CoachSheet { lesson in
+                    lessons.replace(with: lesson)
+                    startLesson()
+                }
+            }
+            .onAppear(perform: prepareTodaysLesson)
         }
     }
 
@@ -53,6 +62,10 @@ struct PathView: View {
         let emojis = Dictionary(words.map { ($0.category, $0.emoji) }, uniquingKeysWith: { first, _ in first })
 
         return List {
+            Section {
+                TodayCard(onStartLesson: startLesson, onAskCoach: { isAskingCoach = true })
+            }
+
             Section {
                 Button(action: startContinue) {
                     ContinueCard(theme: lesson.isEmpty ? nil : focus, lessonCount: lesson.count, bonusCount: lessonBonus)
@@ -101,6 +114,35 @@ struct PathView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// The local lesson is prepared once a day, the first time the tab is shown.
+    private func prepareTodaysLesson() {
+        guard lessons.today == nil, !words.isEmpty || !phrases.isEmpty || !verbs.isEmpty else { return }
+        lessons.replace(with: DailyLessonBuilder.local(words: words, phrases: phrases, verbs: verbs))
+    }
+
+    /// Starts (or resumes) today's lesson; a finished lesson can be done again.
+    private func startLesson() {
+        prepareTodaysLesson()
+        guard var lesson = lessons.today else { return }
+        if lesson.isComplete {
+            lesson.done = []
+            lessons.replace(with: lesson)
+        }
+        Task { @MainActor in
+            let allowSpeaking = speakingInMixed ? await SpeechRecognizer.requestPermissions() : false
+            let plan = DailyLessonBuilder.steps(for: lesson, allowSpeaking: allowSpeaking)
+            guard !plan.steps.isEmpty else { return }
+            let session = StudySession(steps: plan.steps, allWords: words, allPhrases: phrases, allVerbs: verbs,
+                                       kindPolicy: .adaptive, kindOverrides: plan.overrides,
+                                       allowSpeaking: allowSpeaking, context: context)
+            session.isLesson = true
+            session.onStepGraded = { step in
+                if let index = plan.indexByStep[step] { lessons.markDone(index) }
+            }
+            activeSession = session
         }
     }
 
