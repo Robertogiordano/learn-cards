@@ -3,9 +3,10 @@ import XCTest
 
 final class AnswerCheckerTests: XCTestCase {
     let tisch = VocabEntry(german: "Tisch", article: .der, plural: "Tische", english: ["table", "desk"], partOfSpeech: .noun)
+    let lampe = VocabEntry(german: "Lampe", article: .die, plural: "Lampen", english: ["lamp"], partOfSpeech: .noun)
+    let buch = VocabEntry(german: "Buch", article: .das, plural: "Bücher", english: ["book"], partOfSpeech: .noun)
     let apfel = VocabEntry(german: "Apfel", article: .der, plural: "Äpfel", english: ["apple"], partOfSpeech: .noun)
     let gehen = VocabEntry(german: "gehen", english: ["to go", "walk"], partOfSpeech: .verb)
-    let strasse = VocabEntry(german: "Straße", article: .die, plural: "Straßen", english: ["street"], partOfSpeech: .noun)
 
     func testNormalize() {
         XCTAssertEqual(AnswerChecker.normalize("  Der   Tisch! "), "der tisch")
@@ -24,27 +25,31 @@ final class AnswerCheckerTests: XCTestCase {
         XCTAssertEqual(AnswerChecker.compareGerman("Eid", "Ei"), .wrong)
     }
 
-    func testLevelOneIgnoresArticle() {
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(word: "Tisch"), entry: tisch, level: .translation), .correct)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .die, word: "Tisch"), entry: tisch, level: .translation), .correct)
+    func testTranslation() {
+        XCTAssertEqual(AnswerChecker.checkTranslation("Tisch", entry: tisch), .correct)
+        XCTAssertEqual(AnswerChecker.checkTranslation("die Tisch", entry: tisch), .correct)
+        XCTAssertEqual(AnswerChecker.checkTranslation("gehen", entry: gehen), .correct)
+        XCTAssertEqual(AnswerChecker.checkTranslation("Stuhl", entry: tisch), .wrong)
     }
 
-    func testLevelTwoRequiresArticle() {
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .der, word: "Tisch"), entry: tisch, level: .article), .correct)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .das, word: "Tisch"), entry: tisch, level: .article), .wrong)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(word: "Tisch"), entry: tisch, level: .article), .wrong)
-        // Article typed into the word field.
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(word: "der Tisch"), entry: tisch, level: .article), .correct)
-        // Verbs have no article: level 2 falls back to the word.
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(word: "gehen"), entry: gehen, level: .article), .correct)
+    func testArticle() {
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "der", indefinite: "ein", entry: tisch), .correct)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "Der Tisch", indefinite: "ein Tisch", entry: tisch), .correct)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "die", indefinite: "eine", entry: lampe), .correct)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "das", indefinite: "ein", entry: buch), .correct)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "der", indefinite: "eine", entry: tisch), .wrong)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "das", indefinite: "ein", entry: tisch), .wrong)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "die", indefinite: "ein", entry: lampe), .wrong)
+        XCTAssertEqual(AnswerChecker.checkArticle(definite: "der", indefinite: "ein", entry: gehen), .wrong)
     }
 
-    func testLevelThreeRequiresPlural() {
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .der, word: "Apfel", plural: "Äpfel"), entry: apfel, level: .plural), .correct)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .der, word: "Apfel", plural: "die Aepfel"), entry: apfel, level: .plural), .correct)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .der, word: "Apfel", plural: "Apfel"), entry: apfel, level: .plural), .almost)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .der, word: "Apfel", plural: "Apfeln"), entry: apfel, level: .plural), .wrong)
-        XCTAssertEqual(AnswerChecker.checkGerman(GermanAnswer(article: .der, word: "Apfel"), entry: apfel, level: .plural), .wrong)
+    func testPlural() {
+        XCTAssertEqual(AnswerChecker.checkPlural("Tische", entry: tisch), .correct)
+        XCTAssertEqual(AnswerChecker.checkPlural("die Tische", entry: tisch), .correct)
+        XCTAssertEqual(AnswerChecker.checkPlural("Aepfel", entry: apfel), .correct)
+        XCTAssertEqual(AnswerChecker.checkPlural("Apfel", entry: apfel), .almost)
+        XCTAssertEqual(AnswerChecker.checkPlural("Apfeln", entry: apfel), .wrong)
+        XCTAssertEqual(AnswerChecker.checkPlural("Tisch", entry: gehen), .wrong)
     }
 
     func testCompareEnglish() {
@@ -58,19 +63,27 @@ final class AnswerCheckerTests: XCTestCase {
         XCTAssertEqual(AnswerChecker.compareEnglish("road", accepted: ["street / road"]), .correct)
     }
 
-    func testSpoken() {
-        XCTAssertEqual(AnswerChecker.checkSpoken(["Tisch"], entry: tisch, level: .translation), .correct)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["der Tisch"], entry: tisch, level: .translation), .correct)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["Der Tisch."], entry: tisch, level: .article), .correct)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["die Tisch"], entry: tisch, level: .article), .wrong)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["die Tisch", "der Tisch"], entry: tisch, level: .article), .correct)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["der Tisch, die Tische"], entry: tisch, level: .plural), .correct)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["die Straße die Straßen"], entry: strasse, level: .plural), .correct)
-        XCTAssertEqual(AnswerChecker.checkSpoken([], entry: tisch, level: .translation), .wrong)
+    func testSpokenTranslation() {
+        XCTAssertEqual(AnswerChecker.checkSpoken(["Tisch"], entry: tisch, area: .translation), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["der Tisch."], entry: tisch, area: .translation), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["Stuhl", "Tisch"], entry: tisch, area: .translation), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken([], entry: tisch, area: .translation), .wrong)
+        let tuer = VocabEntry(german: "Haustür", article: .die, plural: "Haustüren", english: ["front door"], partOfSpeech: .noun)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["Haus Tür"], entry: tuer, area: .translation), .correct)
     }
 
-    func testSpokenCompoundSplitByRecognizer() {
-        let tuer = VocabEntry(german: "Haustür", article: .die, plural: "Haustüren", english: ["front door"], partOfSpeech: .noun)
-        XCTAssertEqual(AnswerChecker.checkSpoken(["Haus Tür"], entry: tuer, level: .translation), .correct)
+    func testSpokenArticle() {
+        XCTAssertEqual(AnswerChecker.checkSpoken(["Der Tisch, ein Tisch."], entry: tisch, area: .article), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["die Lampe eine Lampe"], entry: lampe, area: .article), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["der Tisch eine Tisch"], entry: tisch, area: .article), .wrong)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["die Tisch ein Tisch"], entry: tisch, area: .article), .wrong)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["der Tisch"], entry: tisch, area: .article), .wrong)
+    }
+
+    func testSpokenPlural() {
+        XCTAssertEqual(AnswerChecker.checkSpoken(["die Tische"], entry: tisch, area: .plural), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["Tische"], entry: tisch, area: .plural), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["die Bücher"], entry: buch, area: .plural), .correct)
+        XCTAssertEqual(AnswerChecker.checkSpoken(["die Buchen"], entry: buch, area: .plural), .wrong)
     }
 }

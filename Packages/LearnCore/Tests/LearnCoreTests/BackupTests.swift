@@ -22,6 +22,46 @@ final class BackupTests: XCTestCase {
         XCTAssertEqual(decoded.words, original.words)
     }
 
+    func testRoundTripKeepsAllSchedulesAndCategory() throws {
+        var article = SRSState.new(now: base)
+        article.lastReviewed = base.addingTimeInterval(30)
+        let original = BackupWord(
+            entry: VocabEntry(german: "Brot", article: .das, plural: "Brote", english: ["bread"], partOfSpeech: .noun, category: "Cibo"),
+            createdAt: base,
+            updatedAt: base,
+            srs: .new(now: base),
+            articleSrs: article
+        )
+        let decoded = try BackupCodec.decode(BackupCodec.encode(Backup(exportedAt: base, words: [original])))
+        XCTAssertEqual(decoded.words.first?.category, "Cibo")
+        XCTAssertEqual(decoded.words.first?.articleSrs, article)
+        XCTAssertEqual(decoded.words.first?.lastActivity, base.addingTimeInterval(30))
+    }
+
+    func testDecodesSchemaV1() throws {
+        let v1 = """
+        {
+          "schemaVersion": 1,
+          "exportedAt": "2026-05-28T20:26:40Z",
+          "words": [{
+            "id": "6F9619FF-8B86-D011-B42D-00C04FC964FF",
+            "german": "Tisch", "article": "der", "plural": "Tische",
+            "english": ["table"], "partOfSpeech": "noun", "emoji": "🪑",
+            "createdAt": "2026-05-28T20:26:40Z", "updatedAt": "2026-05-28T20:26:40Z",
+            "srs": {"ease": 2.5, "intervalDays": 3, "repetitions": 2, "lapses": 0,
+                    "dueDate": "2026-05-31T00:00:00Z", "lastReviewed": "2026-05-28T20:26:40Z"},
+            "timesCorrect": 2, "timesWrong": 0
+          }]
+        }
+        """
+        let backup = try BackupCodec.decode(Data(v1.utf8))
+        let word = try XCTUnwrap(backup.words.first)
+        XCTAssertEqual(word.category, VocabEntry.defaultCategory)
+        XCTAssertEqual(word.srs.repetitions, 2)
+        XCTAssertTrue(word.articleSrs.isNew)
+        XCTAssertTrue(word.pluralSrs.isNew)
+    }
+
     func testRejectsFutureVersion() throws {
         let future = Backup(schemaVersion: 99, exportedAt: base, words: [])
         XCTAssertThrowsError(try BackupCodec.decode(BackupCodec.encode(future))) { error in

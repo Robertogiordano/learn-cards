@@ -49,6 +49,22 @@ final class ExtractionParserTests: XCTestCase {
         XCTAssertEqual(buch.emoji, "📝")
     }
 
+    func testCategoryReusesExistingSpelling() throws {
+        let json = """
+        {"words": [
+          {"german": "Brot", "article": "das", "plural": "Brote", "english": ["bread"], "partOfSpeech": "noun", "emoji": "🍞", "category": "cibo"},
+          {"german": "Zug", "article": "der", "plural": "Züge", "english": ["train"], "partOfSpeech": "noun", "emoji": "🚆", "category": "trasporti"},
+          {"german": "gehen", "article": null, "plural": null, "english": ["go"], "partOfSpeech": "verb", "emoji": "🚶"}
+        ]}
+        """
+        let entries = try ExtractionParser.parse(json, existingCategories: ["Cibo", "Casa"])
+        XCTAssertEqual(entries.map(\.category), ["Cibo", "Trasporti", VocabEntry.defaultCategory])
+    }
+
+    func testPromptListsExistingCategories() {
+        XCTAssertTrue(ExtractionPrompt.system(existingCategories: ["Cibo", "Casa"]).contains("Cibo, Casa"))
+    }
+
     func testRejectsNonJSON() {
         XCTAssertThrowsError(try ExtractionParser.parse("Sorry, I cannot read this image.")) { error in
             XCTAssertEqual(error as? ExtractionParser.ParseError, .noJSON)

@@ -1,5 +1,6 @@
 import LearnCore
 import PhotosUI
+import SwiftData
 import SwiftUI
 
 struct ExtractedBatch: Identifiable {
@@ -9,6 +10,7 @@ struct ExtractedBatch: Identifiable {
 
 struct ImportView: View {
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
+    @Query private var words: [Word]
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var isExtracting = false
@@ -131,11 +133,13 @@ struct ImportView: View {
             return
         }
         let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
+        let categories = words.categories
         isExtracting = true
         Task { @MainActor in
             defer { isExtracting = false }
             do {
-                let entries = try await OpenRouterClient(apiKey: key, model: modelID).extractVocabulary(fromJPEG: jpeg)
+                let client = OpenRouterClient(apiKey: key, model: modelID, existingCategories: categories)
+                let entries = try await client.extractVocabulary(fromJPEG: jpeg)
                 batch = ExtractedBatch(entries: entries)
             } catch {
                 errorMessage = error.localizedDescription

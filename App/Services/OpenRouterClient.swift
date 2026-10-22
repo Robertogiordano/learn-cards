@@ -31,6 +31,8 @@ struct OpenRouterClient {
 
     let apiKey: String
     let model: String
+    /// The learner's themes, so the model reuses them.
+    var existingCategories: [String] = []
     var session: URLSession = .shared
 
     private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
@@ -44,7 +46,7 @@ struct OpenRouterClient {
             // Some models reject structured outputs: retry with the prompt alone.
             content = try await complete(jpeg: jpeg, structured: false)
         }
-        let entries = try ExtractionParser.parse(content)
+        let entries = try ExtractionParser.parse(content, existingCategories: existingCategories)
         guard !entries.isEmpty else { throw ClientError.noWords }
         return entries
     }
@@ -62,7 +64,10 @@ struct OpenRouterClient {
             "type": "image_url",
             "image_url": ["url": "data:image/jpeg;base64,\(jpeg.base64EncodedString())"],
         ]
-        let systemMessage: [String: Any] = ["role": "system", "content": ExtractionPrompt.system]
+        let systemMessage: [String: Any] = [
+            "role": "system",
+            "content": ExtractionPrompt.system(existingCategories: existingCategories),
+        ]
         let userMessage: [String: Any] = ["role": "user", "content": [textPart, imagePart]]
         var body: [String: Any] = [
             "model": model,

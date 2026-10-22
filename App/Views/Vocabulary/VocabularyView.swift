@@ -23,11 +23,15 @@ struct VocabularyView: View {
     @State private var sort = VocabularySort.recent
     @State private var editing: Word?
     @State private var isAdding = false
+    @State private var themeFilter: String?
 
     private var visibleWords: [Word] {
         let query = search.trimmed.lowercased()
-        let filtered = query.isEmpty ? words : words.filter { word in
-            word.german.lowercased().contains(query) || word.english.contains { $0.lowercased().contains(query) }
+        let themed = themeFilter.map { theme in words.filter { $0.category == theme } } ?? words
+        let filtered = query.isEmpty ? themed : themed.filter { word in
+            word.german.lowercased().contains(query)
+                || word.category.lowercased().contains(query)
+                || word.english.contains { $0.lowercased().contains(query) }
         }
         switch sort {
         case .recent:
@@ -39,20 +43,33 @@ struct VocabularyView: View {
         }
     }
 
-    private var dueCount: Int { words.filter(\.isDue).count }
+    private var dueCount: Int { words.filter(\.isDueAnywhere).count }
+
+    /// Visible words grouped by theme, in the order of `Array<Word>.categories`.
+    private var sections: [ThemeSection] {
+        let visible = visibleWords
+        let grouped = Dictionary(grouping: visible, by: { $0.category })
+        return visible.categories.map { ThemeSection(theme: $0, words: grouped[$0] ?? []) }
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 if !words.isEmpty {
+                    Text("\(words.count) parole in \(words.categories.count) temi · \(dueCount) da ripassare")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .listRowBackground(Color.clear)
+                }
+                ForEach(sections) { section in
                     Section {
-                        ForEach(visibleWords) { word in
+                        ForEach(section.words) { word in
                             Button { editing = word } label: { WordRow(word: word) }
                                 .buttonStyle(.plain)
                         }
-                        .onDelete(perform: delete)
+                        .onDelete { offsets in delete(offsets.map { section.words[$0] }) }
                     } header: {
-                        Text("\(words.count) parole · \(dueCount) da ripassare")
+                        Text("\(section.theme) · \(section.words.count)")
                     }
                 }
             }
@@ -73,8 +90,14 @@ struct VocabularyView: View {
                         Picker("Ordina", selection: $sort) {
                             ForEach(VocabularySort.allCases) { Text($0.title).tag($0) }
                         }
+                        Picker("Tema", selection: $themeFilter) {
+                            Text("Tutti i temi").tag(String?.none)
+                            ForEach(words.categories, id: \.self) { theme in
+                                Text(theme).tag(String?.some(theme))
+                            }
+                        }
                     } label: {
-                        Label("Ordina", systemImage: "arrow.up.arrow.down")
+                        Label("Ordina e filtra", systemImage: "line.3.horizontal.decrease.circle")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -82,13 +105,13 @@ struct VocabularyView: View {
                 }
             }
             .sheet(item: $editing) { word in
-                WordEditView(title: "Modifica", entry: word.entry) { updated in
+                WordEditView(title: "Modifica", entry: word.entry, themes: words.categories) { updated in
                     word.update(from: updated)
                     try? context.save()
                 }
             }
             .sheet(isPresented: $isAdding) {
-                WordEditView(title: "Nuova parola", entry: VocabEntry(german: "", english: [])) { entry in
+                WordEditView(title: "Nuova parola", entry: VocabEntry(german: "", english: []), themes: words.categories) { entry in
                     context.insert(Word(entry: entry))
                     try? context.save()
                 }
@@ -96,13 +119,19 @@ struct VocabularyView: View {
         }
     }
 
-    private func delete(at offsets: IndexSet) {
-        let targets = offsets.map { visibleWords[$0] }
+    private func delete(_ targets: [Word]) {
         for word in targets {
             context.delete(word)
         }
         try? context.save()
     }
+}
+
+struct ThemeSection: Identifiable {
+    let theme: String
+    let words: [Word]
+
+    var id: String { theme }
 }
 
 struct WordRow: View {
@@ -120,7 +149,7 @@ struct WordRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if word.isDue {
+            if word.isDueAnywhere {
                 Circle()
                     .fill(Color.orange)
                     .frame(width: 8, height: 8)

@@ -1,117 +1,151 @@
 import Foundation
 
 public enum ExerciseKind: String, CaseIterable, Codable, Hashable, Sendable {
-    /// English prompt, pick the German word among four.
+    /// Pick the answer among a few options.
     case multipleChoice
-    /// English prompt, type the German word.
+    /// Type the German answer.
     case typeGerman
-    /// German prompt, type the English word.
+    /// German prompt, type the English word (translation only).
     case typeEnglish
-    /// English prompt, say the German word.
+    /// Say the German answer.
     case speakGerman
 }
 
 public struct Exercise: Identifiable, Sendable {
     public let id = UUID()
+    public let area: StudyArea
     public let kind: ExerciseKind
     public let entry: VocabEntry
-    public let level: StudyLevel
     /// Multiple-choice options; empty for the other kinds.
     public let options: [String]
+    /// Optional second line per option (the gender for article questions).
+    public let optionDetails: [String]
     public let correctIndex: Int?
 
-    public init(kind: ExerciseKind, entry: VocabEntry, level: StudyLevel, options: [String] = [], correctIndex: Int? = nil) {
+    public init(
+        area: StudyArea,
+        kind: ExerciseKind,
+        entry: VocabEntry,
+        options: [String] = [],
+        optionDetails: [String] = [],
+        correctIndex: Int? = nil
+    ) {
+        self.area = area
         self.kind = kind
         self.entry = entry
-        self.level = level
         self.options = options
+        self.optionDetails = optionDetails
         self.correctIndex = correctIndex
     }
 
     public var prompt: String {
-        kind == .typeEnglish ? entry.germanDisplay(level: level) : entry.englishDisplay
+        switch area {
+        case .translation: return kind == .typeEnglish ? entry.german : entry.englishDisplay
+        case .article: return entry.german
+        case .plural: return entry.withArticle
+        }
     }
 
     public var expectedAnswer: String {
-        kind == .typeEnglish ? entry.englishDisplay : entry.germanDisplay(level: level)
+        switch area {
+        case .translation:
+            return kind == .typeEnglish ? entry.englishDisplay : entry.german
+        case .article:
+            return [entry.withArticle, entry.withIndefiniteArticle].compactMap { $0 }.joined(separator: " / ")
+        case .plural:
+            return entry.pluralWithArticle ?? entry.german
+        }
     }
-
-    public var requiresArticle: Bool { kind != .typeEnglish && level.requiresArticle(for: entry) }
-
-    public var requiresPlural: Bool { kind != .typeEnglish && level.requiresPlural(for: entry) }
 }
 
 public enum ExerciseBuilder {
     public static func make<R: RandomNumberGenerator>(
+        area: StudyArea,
         kind: ExerciseKind,
         entry: VocabEntry,
         pool: [VocabEntry],
-        level: StudyLevel,
         using rng: inout R
     ) -> Exercise {
         guard kind == .multipleChoice else {
-            return Exercise(kind: kind, entry: entry, level: level)
+            return Exercise(area: area, kind: kind, entry: entry)
         }
+        switch area {
+        case .translation:
+            return translationChoice(entry: entry, pool: pool, using: &rng)
+        case .article:
+            return articleChoice(entry: entry)
+        case .plural:
+            return pluralChoice(entry: entry, using: &rng)
+        }
+    }
 
-        let correct = entry.germanDisplay(level: level)
+    public static func make(area: StudyArea, kind: ExerciseKind, entry: VocabEntry, pool: [VocabEntry]) -> Exercise {
+        var rng = SystemRandomNumberGenerator()
+        return make(area: area, kind: kind, entry: entry, pool: pool, using: &rng)
+    }
+
+    // MARK: - Multiple choice per area
+
+    private static func translationChoice<R: RandomNumberGenerator>(entry: VocabEntry, pool: [VocabEntry], using rng: inout R) -> Exercise {
+        let correct = entry.german
         var distractors: [String] = []
-        func add(_ option: String) {
-            let key = AnswerChecker.normalize(option)
-            guard key != AnswerChecker.normalize(correct),
-                  !distractors.contains(where: { AnswerChecker.normalize($0) == key }) else { return }
-            distractors.append(option)
-        }
-
-        // At levels 2-3 one option tests the grammar of the very same word.
-        if level.requiresArticle(for: entry), let article = entry.article,
-           let other = Article.allCases.filter({ $0 != article }).randomElement(using: &rng) {
-            var variant = entry
-            variant.article = other
-            add(variant.germanDisplay(level: level))
-        }
-        if level.requiresPlural(for: entry), let plural = entry.plural,
-           let fake = plausiblePlurals(for: entry.german, excluding: plural).randomElement(using: &rng) {
-            var variant = entry
-            variant.plural = fake
-            add(variant.germanDisplay(level: level))
-        }
-
         let others = pool
             .filter { $0.id != entry.id && $0.dedupeKey != entry.dedupeKey }
             .shuffled(using: &rng)
         let samePartOfSpeech = others.filter { $0.partOfSpeech == entry.partOfSpeech }
         let rest = others.filter { $0.partOfSpeech != entry.partOfSpeech }
         for other in samePartOfSpeech + rest where distractors.count < 3 {
-            add(other.germanDisplay(level: level))
-        }
-
-        // Small vocabularies: pad with the remaining article variants.
-        if distractors.count < 3, level.requiresArticle(for: entry), let article = entry.article {
-            for other in Article.allCases where other != article {
-                var variant = entry
-                variant.article = other
-                add(variant.germanDisplay(level: level))
+            let key = AnswerChecker.normalize(other.german)
+            if key != AnswerChecker.normalize(correct),
+               !distractors.contains(where: { AnswerChecker.normalize($0) == key }) {
+                distractors.append(other.german)
             }
         }
-
-        var options = Array(distractors.prefix(3)) + [correct]
-        guard options.count >= 2 else {
-            // Not enough material for a real choice.
-            return Exercise(kind: .typeGerman, entry: entry, level: level)
+        guard !distractors.isEmpty else {
+            // Not enough words for a real choice.
+            return Exercise(area: .translation, kind: .typeGerman, entry: entry)
         }
+        var options = distractors + [correct]
         options.shuffle(using: &rng)
-        return Exercise(kind: kind, entry: entry, level: level, options: options, correctIndex: options.firstIndex(of: correct))
+        return Exercise(area: .translation, kind: .multipleChoice, entry: entry,
+                        options: options, correctIndex: options.firstIndex(of: correct))
     }
 
-    public static func make(kind: ExerciseKind, entry: VocabEntry, pool: [VocabEntry], level: StudyLevel) -> Exercise {
-        var rng = SystemRandomNumberGenerator()
-        return make(kind: kind, entry: entry, pool: pool, level: level, using: &rng)
+    /// Always the three genders in a fixed order, like a grammar table.
+    private static func articleChoice(entry: VocabEntry) -> Exercise {
+        guard let article = entry.article else {
+            return Exercise(area: .article, kind: .typeGerman, entry: entry)
+        }
+        let options = Article.allCases.map { "\($0.rawValue) \(entry.german) / \($0.indefinite) \(entry.german)" }
+        return Exercise(
+            area: .article,
+            kind: .multipleChoice,
+            entry: entry,
+            options: options,
+            optionDetails: Article.allCases.map(\.genderLabel),
+            correctIndex: Article.allCases.firstIndex(of: article)
+        )
     }
+
+    private static func pluralChoice<R: RandomNumberGenerator>(entry: VocabEntry, using rng: inout R) -> Exercise {
+        guard let plural = entry.plural, entry.hasPlural else {
+            return Exercise(area: .plural, kind: .typeGerman, entry: entry)
+        }
+        let fakes = plausiblePlurals(for: entry.german, excluding: plural).shuffled(using: &rng).prefix(3)
+        let correct = "die \(plural)"
+        var options = fakes.map { "die \($0)" } + [correct]
+        options.shuffle(using: &rng)
+        return Exercise(area: .plural, kind: .multipleChoice, entry: entry,
+                        options: options, correctIndex: options.firstIndex(of: correct))
+    }
+
+    // MARK: - Fake plurals
 
     /// Wrong but believable plurals built from the common German endings.
     public static func plausiblePlurals(for word: String, excluding actual: String) -> [String] {
         let umlauted = addUmlaut(to: word)
-        var candidates = [word + "e", word + "en", word + "n", word + "er", word + "s", word]
+        let stem = word.hasSuffix("e") ? String(word.dropLast()) : word
+        var candidates = [word + "e", word + "en", word + "n", word + "er", word + "s", word, stem + "en"]
         if umlauted != word {
             candidates += [umlauted, umlauted + "e", umlauted + "er"]
         }

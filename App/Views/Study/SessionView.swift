@@ -91,6 +91,10 @@ struct PromptCard: View {
             Text(exercise.prompt)
                 .font(.title.bold())
                 .multilineTextAlignment(.center)
+            if exercise.area != .translation {
+                Text(exercise.entry.englishDisplay)
+                    .foregroundStyle(.secondary)
+            }
             if exercise.kind == .typeEnglish {
                 Button {
                     Speaker.shared.speak(exercise.prompt)
@@ -130,6 +134,19 @@ struct FeedbackPanel: View {
         }
     }
 
+    /// What to show and read aloud as the right answer.
+    private var solution: String {
+        switch exercise.area {
+        case .translation: return exercise.entry.fullGerman
+        case .article: return exercise.expectedAnswer
+        case .plural: return "\(exercise.entry.withArticle) → \(exercise.expectedAnswer)"
+        }
+    }
+
+    private var spokenSolution: String {
+        exercise.area == .plural ? exercise.expectedAnswer : solution.replacingOccurrences(of: " / ", with: ", ")
+    }
+
     private var color: Color {
         switch feedback.verdict {
         case .correct: return .green
@@ -151,10 +168,11 @@ struct FeedbackPanel: View {
             }
 
             HStack {
-                Text("\(exercise.entry.emoji) \(exercise.entry.fullGerman)")
+                Text("\(exercise.entry.emoji) \(solution)")
                     .font(.title3.bold())
+                    .multilineTextAlignment(.center)
                 Button {
-                    Speaker.shared.speak(exercise.entry.fullGerman)
+                    Speaker.shared.speak(spokenSolution)
                 } label: {
                     Image(systemName: "speaker.wave.2.fill")
                 }
@@ -178,7 +196,7 @@ struct FeedbackPanel: View {
         .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 20))
         .onAppear {
             if autoSpeak && !feedback.overridden {
-                Speaker.shared.speak(exercise.entry.fullGerman)
+                Speaker.shared.speak(spokenSolution)
             }
         }
     }

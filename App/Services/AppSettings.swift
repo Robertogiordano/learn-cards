@@ -4,7 +4,8 @@ import SwiftUI
 
 enum SettingsKey {
     static let model = "openRouterModel"
-    static let level = "studyLevel"
+    static let area = "studyArea"
+    static let excludedThemes = "excludedThemes"
     static let studyMode = "studyMode"
     static let sessionSize = "sessionSize"
     static let speakingInMixed = "speakingInMixed"
@@ -28,7 +29,7 @@ enum OpenRouterModels {
     ]
 }
 
-/// The exercise chosen on the study screen: one kind, or a random mix.
+/// The exercise chosen on the study screen: one kind, or a random mix of the area's kinds.
 enum StudyMode: String, CaseIterable, Identifiable {
     case mixed, multipleChoice, typeGerman, typeEnglish, speakGerman
 
@@ -36,13 +37,17 @@ enum StudyMode: String, CaseIterable, Identifiable {
 
     var kind: ExerciseKind? { ExerciseKind(rawValue: rawValue) }
 
-    var title: String {
+    static func available(in area: StudyArea) -> [StudyMode] {
+        [.mixed] + area.kinds.compactMap { StudyMode(rawValue: $0.rawValue) }
+    }
+
+    func title(in area: StudyArea) -> String {
         switch self {
         case .mixed: return "Misto"
-        case .multipleChoice: return "Scelta multipla (EN → DE)"
-        case .typeGerman: return "Scrivi in tedesco (EN → DE)"
+        case .multipleChoice: return "Scelta multipla"
+        case .typeGerman: return area == .translation ? "Scrivi in tedesco (EN → DE)" : "Scrivi in tedesco"
         case .typeEnglish: return "Scrivi in inglese (DE → EN)"
-        case .speakGerman: return "Pronuncia in tedesco (EN → DE)"
+        case .speakGerman: return "Pronuncia in tedesco"
         }
     }
 
@@ -59,14 +64,33 @@ enum StudyMode: String, CaseIterable, Identifiable {
 
 extension Exercise {
     var instruction: String {
-        var suffix = ""
-        if requiresArticle { suffix += requiresPlural ? ", con articolo e plurale" : ", con l'articolo" }
-        switch kind {
-        case .multipleChoice: return "Scegli la traduzione tedesca"
-        case .typeGerman: return "Scrivi in tedesco" + suffix
-        case .typeEnglish: return "Scrivi in inglese"
-        case .speakGerman: return "Di' in tedesco" + suffix
+        switch (area, kind) {
+        case (.translation, .multipleChoice): return "Scegli la traduzione tedesca"
+        case (.translation, .typeEnglish): return "Scrivi in inglese"
+        case (.translation, .speakGerman): return "Di' in tedesco"
+        case (.translation, _): return "Scrivi in tedesco"
+        case (.article, .multipleChoice): return "Scegli gli articoli giusti"
+        case (.article, .speakGerman): return "Di' con l'articolo determinativo e indeterminativo"
+        case (.article, _): return "Scrivi l'articolo determinativo e indeterminativo"
+        case (.plural, .multipleChoice): return "Scegli il plurale"
+        case (.plural, .speakGerman): return "Di' il plurale"
+        case (.plural, _): return "Scrivi il plurale"
         }
+    }
+}
+
+/// Themes the learner switched off on the study screen, stored as JSON in AppStorage.
+/// Storing the excluded ones means themes created later are included by default.
+enum ThemeSelection {
+    static func decode(_ raw: String) -> Set<String> {
+        guard let data = raw.data(using: .utf8),
+              let themes = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Set(themes)
+    }
+
+    static func encode(_ themes: Set<String>) -> String {
+        guard let data = try? JSONEncoder().encode(themes.sorted()) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
     }
 }
 

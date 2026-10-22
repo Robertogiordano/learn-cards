@@ -8,7 +8,7 @@ struct AnswerFeedback {
     var overridden = false
 }
 
-/// Drives one study session: queue, grading, spaced-repetition updates.
+/// Drives one study session in one area: queue, grading, spaced-repetition updates.
 @MainActor
 final class StudySession: ObservableObject, Identifiable {
     @Published private(set) var exercise: Exercise?
@@ -16,7 +16,7 @@ final class StudySession: ObservableObject, Identifiable {
     @Published private(set) var isFinished = false
     @Published private(set) var results: [Verdict: Int] = [:]
 
-    let level: StudyLevel
+    let area: StudyArea
     let total: Int
 
     private let mode: ExerciseKind?
@@ -33,13 +33,14 @@ final class StudySession: ObservableObject, Identifiable {
 
     var completed: Int { graded.count }
 
-    init(wordIDs: [UUID], allWords: [Word], level: StudyLevel, mode: ExerciseKind?, allowSpeaking: Bool, context: ModelContext) {
+    /// `allWords` is the whole vocabulary, used for multiple-choice distractors.
+    init(wordIDs: [UUID], allWords: [Word], area: StudyArea, mode: ExerciseKind?, allowSpeaking: Bool, context: ModelContext) {
         let wordsByID = Dictionary(allWords.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.wordsByID = wordsByID
         pool = allWords.map(\.entry)
         queue = wordIDs.filter { wordsByID[$0] != nil }
         total = queue.count
-        self.level = level
+        self.area = area
         self.mode = mode
         self.allowSpeaking = allowSpeaking
         self.context = context
@@ -51,7 +52,7 @@ final class StudySession: ObservableObject, Identifiable {
 
         // Only the first attempt counts; repeats after a mistake are practice.
         if !graded.contains(word.id) {
-            snapshot = (word.id, word.srs, word.timesCorrect, word.timesWrong)
+            snapshot = (word.id, word.srs(for: area), word.timesCorrect, word.timesWrong)
             record(verdict, for: word, kind: exercise.kind)
             graded.insert(word.id)
             results[verdict, default: 0] += 1
@@ -71,7 +72,7 @@ final class StudySession: ObservableObject, Identifiable {
             queue.remove(at: index)
         }
         if let snapshot, snapshot.wordID == word.id {
-            word.srs = snapshot.srs
+            word.setSRS(snapshot.srs, for: area)
             word.timesCorrect = snapshot.timesCorrect
             word.timesWrong = snapshot.timesWrong
             record(.correct, for: word, kind: exercise.kind)
@@ -95,16 +96,17 @@ final class StudySession: ObservableObject, Identifiable {
             advance()
             return
         }
-        exercise = ExerciseBuilder.make(kind: mode ?? randomKind(), entry: word.entry, pool: pool, level: level, using: &rng)
+        exercise = ExerciseBuilder.make(area: area, kind: mode ?? randomKind(), entry: word.entry, pool: pool, using: &rng)
         shownAt = Date()
     }
 
     private func record(_ verdict: Verdict, for word: Word, kind: ExerciseKind) {
         let now = Date()
         // Extra practice on words that are not due yet must not push their schedule around.
-        if word.srs.isDue(at: now) {
+        let state = word.srs(for: area)
+        if state.isDue(at: now) {
             let grade = ReviewGrade.from(verdict: verdict, kind: kind, responseTime: now.timeIntervalSince(shownAt))
-            word.srs = SRS.review(word.srs, grade: grade, now: now)
+            word.setSRS(SRS.review(state, grade: grade, now: now), for: area)
         }
         if verdict == .wrong {
             word.timesWrong += 1
@@ -115,7 +117,7 @@ final class StudySession: ObservableObject, Identifiable {
     }
 
     private func randomKind() -> ExerciseKind {
-        let kinds = ExerciseKind.allCases.filter { allowSpeaking || $0 != .speakGerman }
+        let kinds = area.kinds.filter { allowSpeaking || $0 != .speakGerman }
         return kinds.randomElement(using: &rng) ?? .multipleChoice
     }
 }

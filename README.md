@@ -2,12 +2,18 @@
 
 App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
 
-- Fotografi una pagina di esercizi: un modello vision su OpenRouter estrae le parole, ciascuna con una emoji per l'associazione visiva.
-- Prima di salvarle le rivedi e correggi; i duplicati vengono segnalati.
-- Il vocabolario cresce nel tempo e gira solo sul telefono (SwiftData, nessun server).
-- Gli esercizi sono quattro: scelta multipla EN → DE, scrittura EN → DE, scrittura DE → EN e pronuncia EN → DE (riconoscimento vocale Apple on-device).
-- Ci sono tre livelli globali: 1 traduzione, 2 articolo + parola, 3 articolo + parola + plurale.
-- Il ripasso usa la spaced repetition (SM-2).
+- Fotografi una pagina di esercizi: un modello vision su OpenRouter estrae le parole, ognuna con una emoji per l'associazione visiva e un **tema** (Cibo, Casa, Viaggi…). Il modello riusa i temi che hai già e ne crea di nuovi solo quando serve.
+- Prima di salvare rivedi le parole: puoi correggerle, cambiare tema (anche a più parole insieme) e vedere i duplicati.
+- Il vocabolario, raggruppato per tema, cresce nel tempo e resta solo sul telefono (SwiftData, nessun server).
+- Ti alleni in tre aree, ciascuna con un calendario di ripasso separato (SM-2), filtrando per i temi che scegli:
+
+| Area | Domanda | Risposta | Esercizi |
+|---|---|---|---|
+| Traduzione | table 🪑 | Tisch | scelta multipla, scrivi EN → DE, scrivi DE → EN, pronuncia |
+| Articolo | Tisch | der Tisch / ein Tisch | scelta multipla (maskulin/feminin/neutral), scrivi, pronuncia |
+| Plurale | der Tisch | die Tische | scelta multipla, scrivi, pronuncia |
+
+- La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 
 ## Setup
@@ -53,7 +59,7 @@ App/
 
 ## Backup
 
-Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole e progressi di ripasso, ma non la API key.
+Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi e i progressi di ripasso delle tre aree, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
 
 L'import offre due modalità:
 

@@ -7,7 +7,6 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var words: [Word]
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
-    @AppStorage(SettingsKey.level) private var levelRaw = StudyLevel.translation.rawValue
     @AppStorage(SettingsKey.sessionSize) private var sessionSize = 20
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @AppStorage(SettingsKey.autoSpeak) private var autoSpeak = true
@@ -142,11 +141,6 @@ struct SettingsView: View {
 
     private var studySection: some View {
         Section("Studio") {
-            Picker("Livello", selection: $levelRaw) {
-                ForEach(StudyLevel.allCases, id: \.self) { level in
-                    Text("\(level.rawValue) · \(level.shortTitle)").tag(level.rawValue)
-                }
-            }
             Stepper("Parole per sessione: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
             Toggle("Pronuncia nel misto", isOn: $speakingInMixed)
             Toggle("Leggi ad alta voce la soluzione", isOn: $autoSpeak)

@@ -9,19 +9,6 @@ public enum Verdict: Int, Codable, Hashable, Sendable, Comparable {
     public static func < (lhs: Verdict, rhs: Verdict) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
-/// What the learner typed in a German answer.
-public struct GermanAnswer: Hashable, Sendable {
-    public var article: Article?
-    public var word: String
-    public var plural: String
-
-    public init(article: Article? = nil, word: String, plural: String = "") {
-        self.article = article
-        self.word = word
-        self.plural = plural
-    }
-}
-
 public enum AnswerChecker {
     private static let punctuation = Set(".,;:!?\"'«»„“”‚‘’()[]")
 
@@ -103,70 +90,80 @@ public enum AnswerChecker {
         return text
     }
 
-    // MARK: - Full answers
+    // MARK: - Full answers per area
 
-    public static func checkGerman(_ answer: GermanAnswer, entry: VocabEntry, level: StudyLevel) -> Verdict {
-        var word = normalize(answer.word)
-        var article = answer.article
-        // Accept "der Tisch" typed straight into the word field.
-        let tokens = word.split(separator: " ")
-        if entry.hasArticle, tokens.count > 1, let typed = Article(rawValue: String(tokens[0])) {
-            word = tokens.dropFirst().joined(separator: " ")
-            if article == nil { article = typed }
-        }
-
-        var verdict = compareGerman(word, entry.german)
-        if level.requiresArticle(for: entry), article != entry.article {
-            verdict = .wrong
-        }
-        if level.requiresPlural(for: entry), let plural = entry.plural {
-            verdict = min(verdict, compareGerman(dropLeadingDie(answer.plural), plural))
-        }
-        return verdict
+    /// Translation into German: the bare word; a leading article is tolerated, never required.
+    public static func checkTranslation(_ given: String, entry: VocabEntry) -> Verdict {
+        compareGerman(droppingArticle(normalize(given), for: entry), entry.german)
     }
 
-    private struct SpokenPart {
-        let text: String
-        let isArticle: Bool
+    /// Both articles must be exact; "der Tisch" typed in the field counts as "der".
+    public static func checkArticle(definite: String, indefinite: String, entry: VocabEntry) -> Verdict {
+        guard let article = entry.article else { return .wrong }
+        let givenDefinite = firstWord(of: definite)
+        let givenIndefinite = firstWord(of: indefinite)
+        return givenDefinite == article.rawValue && givenIndefinite == article.indefinite ? .correct : .wrong
+    }
+
+    /// The plural, with or without the leading "die"; typos and missing umlauts count as almost.
+    public static func checkPlural(_ given: String, entry: VocabEntry) -> Verdict {
+        guard let plural = entry.plural else { return .wrong }
+        return compareGerman(dropLeadingDie(given), plural)
     }
 
     /// Checks the speech recognizer's candidate transcriptions; the best one wins.
-    public static func checkSpoken(_ transcripts: [String], entry: VocabEntry, level: StudyLevel) -> Verdict {
-        func words(_ text: String) -> [SpokenPart] {
-            normalize(text).split(separator: " ").map { SpokenPart(text: String($0), isArticle: false) }
-        }
-        var expected: [SpokenPart] = []
-        if level.requiresArticle(for: entry), let article = entry.article {
-            expected.append(SpokenPart(text: article.rawValue, isArticle: true))
-        }
-        expected += words(entry.german)
-        if level.requiresPlural(for: entry), let plural = entry.plural {
-            expected.append(SpokenPart(text: "die", isArticle: true))
-            expected += words(plural)
-        }
-
+    public static func checkSpoken(_ transcripts: [String], entry: VocabEntry, area: StudyArea) -> Verdict {
         var best = Verdict.wrong
         for transcript in transcripts {
-            var tokens = normalize(transcript).split(separator: " ").map(String.init)
-            // Saying the article when it is not required is fine.
-            if entry.hasArticle, !level.requiresArticle(for: entry), tokens.count > 1,
-               Article(rawValue: tokens[0]) != nil {
-                tokens.removeFirst()
-            }
             let verdict: Verdict
-            if tokens.count == expected.count {
-                verdict = zip(tokens, expected).map { (token, part) -> Verdict in
-                    if part.isArticle { return token == part.text ? .correct : .wrong }
-                    return compareGerman(token, part.text)
-                }.min() ?? .wrong
-            } else {
-                // The recognizer may split or merge compound words.
-                verdict = compareGerman(tokens.joined(), expected.map(\.text).joined())
+            switch area {
+            case .translation:
+                verdict = compareWords(droppingArticle(normalize(transcript), for: entry), entry.german)
+            case .article:
+                verdict = checkSpokenArticles(normalize(transcript), entry: entry)
+            case .plural:
+                guard let plural = entry.plural else { return .wrong }
+                verdict = compareWords(dropLeadingDie(transcript), plural)
             }
             best = max(best, verdict)
             if best == .correct { break }
         }
         return best
+    }
+
+    /// "der Tisch, ein Tisch": the first word must be the definite article and the
+    /// next ein-word the indefinite one. The noun itself was in the prompt, so it is not graded.
+    private static func checkSpokenArticles(_ transcript: String, entry: VocabEntry) -> Verdict {
+        guard let article = entry.article else { return .wrong }
+        let tokens = transcript.split(separator: " ").map(String.init)
+        guard let first = tokens.first, first == article.rawValue else { return .wrong }
+        let einForms: Set<String> = ["ein", "eine", "einen", "einem", "einer", "eines"]
+        guard let indefinite = tokens.dropFirst().first(where: { einForms.contains($0) }) else { return .wrong }
+        return indefinite == article.indefinite ? .correct : .wrong
+    }
+
+    /// Word-by-word comparison, falling back to the joined text because the
+    /// recognizer may split or merge compound words ("Haus Tür" for "Haustür").
+    private static func compareWords(_ given: String, _ expected: String) -> Verdict {
+        let tokens = normalize(given).split(separator: " ").map(String.init)
+        let parts = normalize(expected).split(separator: " ").map(String.init)
+        if tokens.count == parts.count {
+            return zip(tokens, parts).map { pair in compareGerman(pair.0, pair.1) }.min() ?? .wrong
+        }
+        return compareGerman(tokens.joined(), parts.joined())
+    }
+
+    private static func droppingArticle(_ normalized: String, for entry: VocabEntry) -> String {
+        guard entry.hasArticle else { return normalized }
+        let tokens = normalized.split(separator: " ")
+        if tokens.count > 1, Article(rawValue: String(tokens[0])) != nil {
+            return tokens.dropFirst().joined(separator: " ")
+        }
+        return normalized
+    }
+
+    private static func firstWord(of text: String) -> String {
+        normalize(text).split(separator: " ").first.map(String.init) ?? ""
     }
 
     private static func dropLeadingDie(_ text: String) -> String {

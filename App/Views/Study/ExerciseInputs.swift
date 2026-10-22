@@ -16,11 +16,18 @@ struct MultipleChoiceView: View {
                     selected = index
                     onSelect(index)
                 } label: {
-                    Text(option)
-                        .font(.title3)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(background(for: index), in: RoundedRectangle(cornerRadius: 14))
+                    VStack(spacing: 2) {
+                        Text(option)
+                            .font(.title3)
+                        if index < exercise.optionDetails.count {
+                            Text(exercise.optionDetails[index])
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(background(for: index), in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
                 .disabled(isAnswered)
@@ -36,61 +43,54 @@ struct MultipleChoiceView: View {
     }
 }
 
+/// Typed answers; the layout depends on the area.
 struct TypingView: View {
     let exercise: Exercise
     let isAnswered: Bool
     let onSubmit: (Verdict, String) -> Void
 
-    private enum Field { case word, plural }
+    private enum Field { case first, second }
 
-    @State private var article: Article?
-    @State private var word = ""
-    @State private var plural = ""
+    @State private var first = ""
+    @State private var second = ""
     @FocusState private var focus: Field?
+
+    private var canSubmit: Bool {
+        exercise.area == .article ? !first.trimmed.isEmpty && !second.trimmed.isEmpty : !first.trimmed.isEmpty
+    }
 
     var body: some View {
         VStack(spacing: 14) {
-            if exercise.requiresArticle {
-                Picker("Articolo", selection: $article) {
-                    ForEach(Article.allCases, id: \.self) { article in
-                        Text(article.rawValue).tag(Article?.some(article))
-                    }
+            switch exercise.area {
+            case .translation:
+                answerField(exercise.kind == .typeEnglish ? "In inglese" : "In tedesco", text: $first, field: .first, isLast: true)
+            case .article:
+                HStack {
+                    answerField("der/die/das", text: $first, field: .first, isLast: false)
+                        .frame(width: 130)
+                    Text(exercise.entry.german).font(.title3)
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
-            }
-
-            TextField(exercise.kind == .typeEnglish ? "In inglese" : "In tedesco", text: $word)
-                .textFieldStyle(.roundedBorder)
-                .font(.title3)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($focus, equals: .word)
-                .submitLabel(exercise.requiresPlural ? .next : .done)
-                .onSubmit {
-                    if exercise.requiresPlural { focus = .plural } else { submit() }
+                HStack {
+                    answerField("ein/eine", text: $second, field: .second, isLast: true)
+                        .frame(width: 130)
+                    Text(exercise.entry.german).font(.title3)
+                    Spacer()
                 }
-
-            if exercise.requiresPlural {
+            case .plural:
                 HStack {
                     Text("die")
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                    TextField("Plurale", text: $plural)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.title3)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($focus, equals: .plural)
-                        .submitLabel(.done)
-                        .onSubmit { submit() }
+                    answerField("Plurale", text: $first, field: .first, isLast: true)
                 }
             }
 
             if !isAnswered {
                 Button("Controlla") { submit() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(word.trimmed.isEmpty)
-                if exercise.kind == .typeGerman {
+                    .disabled(!canSubmit)
+                if exercise.kind == .typeGerman && exercise.area != .article {
                     Text("Puoi scrivere ae, oe, ue, ss al posto di ä, ö, ü, ß.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -98,23 +98,37 @@ struct TypingView: View {
             }
         }
         .disabled(isAnswered)
-        .onAppear { focus = .word }
+        .onAppear { focus = .first }
+    }
+
+    private func answerField(_ placeholder: String, text: Binding<String>, field: Field, isLast: Bool) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.roundedBorder)
+            .font(.title3)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .focused($focus, equals: field)
+            .submitLabel(isLast ? .done : .next)
+            .onSubmit {
+                if isLast { submit() } else { focus = .second }
+            }
     }
 
     private func submit() {
-        guard !isAnswered, !word.trimmed.isEmpty else { return }
+        guard !isAnswered, canSubmit else { return }
         focus = nil
-        if exercise.kind == .typeEnglish {
-            onSubmit(AnswerChecker.compareEnglish(word, accepted: exercise.entry.english), word.trimmed)
-            return
+        let entry = exercise.entry
+        switch exercise.area {
+        case .translation where exercise.kind == .typeEnglish:
+            onSubmit(AnswerChecker.compareEnglish(first, accepted: entry.english), first.trimmed)
+        case .translation:
+            onSubmit(AnswerChecker.checkTranslation(first, entry: entry), first.trimmed)
+        case .article:
+            let verdict = AnswerChecker.checkArticle(definite: first, indefinite: second, entry: entry)
+            onSubmit(verdict, "\(first.trimmed) \(entry.german) / \(second.trimmed) \(entry.german)")
+        case .plural:
+            onSubmit(AnswerChecker.checkPlural(first, entry: entry), "die \(first.trimmed)")
         }
-        let answer = GermanAnswer(article: article, word: word, plural: plural)
-        let verdict = AnswerChecker.checkGerman(answer, entry: exercise.entry, level: exercise.level)
-        var given = [article?.rawValue, word.trimmed].compactMap { $0 }.joined(separator: " ")
-        if exercise.requiresPlural {
-            given += ", die \(plural.trimmed)"
-        }
-        onSubmit(verdict, given)
     }
 }
 
@@ -126,9 +140,17 @@ struct SpeakingView: View {
     @StateObject private var recognizer = SpeechRecognizer()
     @State private var isEvaluating = false
 
+    private var hint: String {
+        switch exercise.area {
+        case .translation: return "Tocca il microfono e parla"
+        case .article: return "Es. „der Tisch, ein Tisch“"
+        case .plural: return "Es. „die Tische“"
+        }
+    }
+
     private var transcriptText: String {
         if let best = recognizer.transcripts.first { return best }
-        return recognizer.isRecording ? "Ti ascolto…" : "Tocca il microfono e parla"
+        return recognizer.isRecording ? "Ti ascolto…" : hint
     }
 
     var body: some View {
@@ -171,7 +193,7 @@ struct SpeakingView: View {
         Task { @MainActor in
             let transcripts = await recognizer.stop()
             isEvaluating = false
-            let verdict = AnswerChecker.checkSpoken(transcripts, entry: exercise.entry, level: exercise.level)
+            let verdict = AnswerChecker.checkSpoken(transcripts, entry: exercise.entry, area: exercise.area)
             onSubmit(verdict, transcripts.first ?? "—")
         }
     }

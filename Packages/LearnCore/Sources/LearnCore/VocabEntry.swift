@@ -2,6 +2,19 @@ import Foundation
 
 public enum Article: String, Codable, CaseIterable, Hashable, Sendable {
     case der, die, das
+
+    /// The matching indefinite article in the nominative.
+    public var indefinite: String {
+        self == .die ? "eine" : "ein"
+    }
+
+    public var genderLabel: String {
+        switch self {
+        case .der: return "maskulin"
+        case .die: return "feminin"
+        case .das: return "neutral"
+        }
+    }
 }
 
 public enum PartOfSpeech: String, Codable, CaseIterable, Hashable, Sendable {
@@ -21,6 +34,8 @@ public enum PartOfSpeech: String, Codable, CaseIterable, Hashable, Sendable {
 
 /// A single vocabulary item, independent of how it is stored.
 public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
+    public static let defaultCategory = "Varie"
+
     public var id: UUID
     /// Base form without article: singular noun, infinitive verb, ...
     public var german: String
@@ -31,6 +46,8 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
     public var english: [String]
     public var partOfSpeech: PartOfSpeech
     public var emoji: String
+    /// Theme used to group words and to pick what to study (Cibo, Casa, ...).
+    public var category: String
 
     public init(
         id: UUID = UUID(),
@@ -39,7 +56,8 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
         plural: String? = nil,
         english: [String],
         partOfSpeech: PartOfSpeech = .other,
-        emoji: String = "📝"
+        emoji: String = "📝",
+        category: String = VocabEntry.defaultCategory
     ) {
         self.id = id
         self.german = german
@@ -48,6 +66,7 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
         self.english = english
         self.partOfSpeech = partOfSpeech
         self.emoji = emoji
+        self.category = category
     }
 
     public var hasArticle: Bool { article != nil }
@@ -56,20 +75,25 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
         !(plural ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// The German form a learner is asked for at the given level.
-    public func germanDisplay(level: StudyLevel) -> String {
-        var text = german
-        if level.requiresArticle(for: self), let article {
-            text = "\(article.rawValue) \(german)"
-        }
-        if level.requiresPlural(for: self), let plural {
-            text += ", die \(plural)"
-        }
-        return text
+    /// "der Tisch", or the bare word when it has no article.
+    public var withArticle: String {
+        article.map { "\($0.rawValue) \(german)" } ?? german
+    }
+
+    /// "ein Tisch"; nil for words without article.
+    public var withIndefiniteArticle: String? {
+        article.map { "\($0.indefinite) \(german)" }
+    }
+
+    /// "die Tische"; nil when there is no plural.
+    public var pluralWithArticle: String? {
+        hasPlural ? plural.map { "die \($0)" } : nil
     }
 
     /// Article, word and plural: everything we know.
-    public var fullGerman: String { germanDisplay(level: .plural) }
+    public var fullGerman: String {
+        pluralWithArticle.map { "\(withArticle), \($0)" } ?? withArticle
+    }
 
     public var englishDisplay: String { english.joined(separator: ", ") }
 

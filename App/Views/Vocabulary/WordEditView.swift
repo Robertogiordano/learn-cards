@@ -4,6 +4,8 @@ import SwiftUI
 /// Edits a vocabulary entry; used for manual words, existing words and extracted words under review.
 struct WordEditView: View {
     let title: String
+    /// Existing themes offered as shortcuts.
+    let themes: [String]
     let onSave: (VocabEntry) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -11,8 +13,9 @@ struct WordEditView: View {
     @State private var englishText: String
     @State private var pluralText: String
 
-    init(title: String, entry: VocabEntry, onSave: @escaping (VocabEntry) -> Void) {
+    init(title: String, entry: VocabEntry, themes: [String] = [], onSave: @escaping (VocabEntry) -> Void) {
         self.title = title
+        self.themes = themes
         self.onSave = onSave
         _draft = State(initialValue: entry)
         _englishText = State(initialValue: entry.english.joined(separator: " / "))
@@ -52,6 +55,20 @@ struct WordEditView: View {
                 } footer: {
                     Text("Separa più traduzioni con /")
                 }
+                Section("Tema") {
+                    HStack {
+                        TextField("Tema", text: $draft.category)
+                        if !themes.isEmpty {
+                            Menu {
+                                ForEach(themes, id: \.self) { theme in
+                                    Button(theme) { draft.category = theme }
+                                }
+                            } label: {
+                                Image(systemName: "list.bullet")
+                            }
+                        }
+                    }
+                }
                 Section("Altro") {
                     Picker("Tipo", selection: $draft.partOfSpeech) {
                         ForEach(PartOfSpeech.allCases, id: \.self) { Text($0.label).tag($0) }
@@ -81,6 +98,8 @@ struct WordEditView: View {
         entry.plural = entry.article == nil || plural.isEmpty ? nil : plural
         if entry.article != nil { entry.partOfSpeech = .noun }
         entry.emoji = entry.emoji.trimmed.first.map(String.init) ?? "📝"
+        let category = entry.category.trimmed
+        entry.category = category.isEmpty ? VocabEntry.defaultCategory : category
         onSave(entry)
         dismiss()
     }

@@ -9,9 +9,13 @@ public struct BackupWord: Codable, Hashable, Sendable {
     public var english: [String]
     public var partOfSpeech: PartOfSpeech
     public var emoji: String
+    public var category: String
     public var createdAt: Date
     public var updatedAt: Date
+    /// Translation schedule (the only one in schema v1).
     public var srs: SRSState
+    public var articleSrs: SRSState
+    public var pluralSrs: SRSState
     public var timesCorrect: Int
     public var timesWrong: Int
 
@@ -20,6 +24,8 @@ public struct BackupWord: Codable, Hashable, Sendable {
         createdAt: Date,
         updatedAt: Date,
         srs: SRSState,
+        articleSrs: SRSState? = nil,
+        pluralSrs: SRSState? = nil,
         timesCorrect: Int = 0,
         timesWrong: Int = 0
     ) {
@@ -30,26 +36,58 @@ public struct BackupWord: Codable, Hashable, Sendable {
         english = entry.english
         partOfSpeech = entry.partOfSpeech
         emoji = entry.emoji
+        category = entry.category
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.srs = srs
+        self.articleSrs = articleSrs ?? .new(now: createdAt)
+        self.pluralSrs = pluralSrs ?? .new(now: createdAt)
         self.timesCorrect = timesCorrect
         self.timesWrong = timesWrong
     }
 
+    enum CodingKeys: String, CodingKey {
+        case id, german, article, plural, english, partOfSpeech, emoji, category
+        case createdAt, updatedAt, srs, articleSrs, pluralSrs, timesCorrect, timesWrong
+    }
+
+    /// Fields added in schema v2 are optional so v1 backups still load.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        german = try container.decode(String.self, forKey: .german)
+        article = try container.decodeIfPresent(Article.self, forKey: .article)
+        plural = try container.decodeIfPresent(String.self, forKey: .plural)
+        english = try container.decode([String].self, forKey: .english)
+        partOfSpeech = try container.decode(PartOfSpeech.self, forKey: .partOfSpeech)
+        emoji = try container.decode(String.self, forKey: .emoji)
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? VocabEntry.defaultCategory
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        srs = try container.decode(SRSState.self, forKey: .srs)
+        articleSrs = try container.decodeIfPresent(SRSState.self, forKey: .articleSrs) ?? .new(now: createdAt)
+        pluralSrs = try container.decodeIfPresent(SRSState.self, forKey: .pluralSrs) ?? .new(now: createdAt)
+        timesCorrect = try container.decodeIfPresent(Int.self, forKey: .timesCorrect) ?? 0
+        timesWrong = try container.decodeIfPresent(Int.self, forKey: .timesWrong) ?? 0
+    }
+
     public var entry: VocabEntry {
         VocabEntry(id: id, german: german, article: article, plural: plural, english: english,
-                   partOfSpeech: partOfSpeech, emoji: emoji)
+                   partOfSpeech: partOfSpeech, emoji: emoji, category: category)
     }
 
     public var dedupeKey: String { VocabEntry.dedupeKey(german: german, article: article) }
 
-    /// Most recent edit or review: decides which copy wins when merging.
-    public var lastActivity: Date { max(updatedAt, srs.lastReviewed ?? .distantPast) }
+    /// Most recent edit or review in any area: decides which copy wins when merging.
+    public var lastActivity: Date {
+        [updatedAt, srs.lastReviewed, articleSrs.lastReviewed, pluralSrs.lastReviewed]
+            .compactMap { $0 }
+            .max() ?? updatedAt
+    }
 }
 
 public struct Backup: Codable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public var schemaVersion: Int
     public var exportedAt: Date
