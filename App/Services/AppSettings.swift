@@ -1,6 +1,7 @@
 import Foundation
 import LearnCore
 import SwiftUI
+import UIKit
 
 enum SettingsKey {
     static let model = "openRouterModel"
@@ -91,6 +92,36 @@ enum ThemeSelection {
     static func encode(_ themes: Set<String>) -> String {
         guard let data = try? JSONEncoder().encode(themes.sorted()) else { return "[]" }
         return String(decoding: data, as: UTF8.self)
+    }
+}
+
+extension Color {
+    /// Card background that ties a noun to its gender in translation exercises:
+    /// blue for der, pink for die, grey for das (darker tones in dark mode).
+    static func gender(_ article: Article) -> Color {
+        let hex = genderHex(article)
+        return Color(uiColor: UIColor { traits in
+            UIColor(hex: traits.userInterfaceStyle == .dark ? hex.dark : hex.light)
+        })
+    }
+
+    private static func genderHex(_ article: Article) -> (light: UInt32, dark: UInt32) {
+        switch article {
+        case .der: return (0xCFE5FF, 0x1F3A5C)
+        case .die: return (0xFFD9E8, 0x5C2643)
+        case .das: return (0xD5D7DD, 0x4A4C55)
+        }
+    }
+}
+
+private extension UIColor {
+    convenience init(hex: UInt32) {
+        self.init(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }
 

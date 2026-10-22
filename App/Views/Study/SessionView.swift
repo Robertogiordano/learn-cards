@@ -113,7 +113,19 @@ struct PromptCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .background {
+            if let genderColor {
+                RoundedRectangle(cornerRadius: 20).fill(genderColor)
+            } else {
+                RoundedRectangle(cornerRadius: 20).fill(.thinMaterial)
+            }
+        }
+    }
+
+    /// Translation cards are tinted by the noun's gender; elsewhere the colour would give the answer away.
+    private var genderColor: Color? {
+        guard exercise.area == .translation, let article = exercise.entry.article else { return nil }
+        return .gender(article)
     }
 }
 
