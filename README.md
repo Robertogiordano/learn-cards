@@ -15,7 +15,7 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
 
 - **Percorso** (scheda Studia), pensato per un vocabolario che cresce:
   - **Continua il percorso**: una lezione sul tema in focus (quello importato più di recente, oppure il più debole), seguita da un **Bonus** che mescola tutto quello che hai già visto in ogni tema e area.
-  - **Mappa dei temi**: per ogni tema una stella per area (Traduzione, Articolo, Plurale), accesa con l'80% delle parole padroneggiate (due risposte giuste di fila), più il badge "+N nuove". Nessun tema è bloccato e le parole aggiunte non azzerano i progressi.
+  - **Mappa dei temi**: per ogni tema una stella per area (Traduzione, Articolo, Plurale), accesa all'80%. Ogni risposta giusta conta, anche negli allenamenti extra: una vale metà parola, due di fila la parola intera, un errore la fa ripartire, più il badge "+N nuove". Nessun tema è bloccato e le parole aggiunte non azzerano i progressi.
   - Ogni parola passa da scelta multipla a scrittura a pronuncia man mano che la impari; un errore la riporta alla scelta multipla.
   - **Allenamento libero** per scegliere a mano area, temi e tipo di esercizio.
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.

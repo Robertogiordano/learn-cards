@@ -30,7 +30,7 @@ struct ThemeDetailView: View {
                     }
                 }
             } footer: {
-                Text("La stella si accende quando padroneggi l'80% delle parole: due risposte giuste di fila. Con \"Automatico\" le parole nuove partono dalla scelta multipla, poi si scrivono e infine si pronunciano; dal menu Allena puoi anche scegliere tu il tipo di esercizio.")
+                Text("Ogni risposta giusta fa avanzare la percentuale: una vale metà parola, due di fila la parola intera; un errore la fa ripartire. La stella si accende all'80%. Con \"Automatico\" le parole nuove partono dalla scelta multipla, poi si scrivono e infine si pronunciano; dal menu Allena puoi anche scegliere tu il tipo di esercizio.")
             }
 
             Section("Parole") {

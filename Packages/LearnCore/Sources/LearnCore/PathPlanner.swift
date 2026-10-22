@@ -18,16 +18,26 @@ public struct PathWord: Sendable {
     public var createdAt: Date
     /// One schedule per area the word takes part in (no article area for verbs, ...).
     public var schedules: [StudyArea: SRSState]
+    /// Correct answers in a row per area, counting every session (practice included).
+    /// Missing areas fall back to the schedule's repetitions.
+    public var streaks: [StudyArea: Int]
 
-    public init(id: UUID, category: String, createdAt: Date, schedules: [StudyArea: SRSState]) {
+    public init(id: UUID, category: String, createdAt: Date, schedules: [StudyArea: SRSState],
+                streaks: [StudyArea: Int] = [:]) {
         self.id = id
         self.category = category
         self.createdAt = createdAt
         self.schedules = schedules
+        self.streaks = streaks
     }
 
     /// Never studied in any area.
     public var isNew: Bool { schedules.values.allSatisfy(\.isNew) }
+
+    /// How far the word got in an area: 0 new or just missed, 1 right once, 2+ mastered.
+    public func level(in area: StudyArea) -> Int {
+        streaks[area] ?? schedules[area]?.repetitions ?? 0
+    }
 }
 
 public struct ThemeProgress: Identifiable, Sendable {
@@ -56,9 +66,10 @@ public enum PathPlanner {
     public static let starThreshold = 0.8
     public static let masteryRepetitions = 2
 
-    /// Two correct answers in a row; a mistake resets the count.
-    public static func isMastered(_ state: SRSState) -> Bool {
-        state.repetitions >= masteryRepetitions
+    /// Share of mastery a word brings to its theme: one right answer is half way,
+    /// two in a row is full; a mistake starts over.
+    public static func progress(level: Int) -> Double {
+        Double(min(max(level, 0), masteryRepetitions)) / Double(masteryRepetitions)
     }
 
     /// Themes with new words first, then alphabetical, the catch-all theme last.
@@ -66,9 +77,10 @@ public enum PathPlanner {
         let progress = Dictionary(grouping: words, by: \.category).map { theme, themeWords in
             var mastery: [StudyArea: Double] = [:]
             for area in StudyArea.allCases {
-                let states = themeWords.compactMap { $0.schedules[area] }
-                guard !states.isEmpty else { continue }
-                mastery[area] = Double(states.filter(isMastered).count) / Double(states.count)
+                let applicable = themeWords.filter { $0.schedules[area] != nil }
+                guard !applicable.isEmpty else { continue }
+                let total = applicable.map { progress(level: $0.level(in: area)) }.reduce(0, +)
+                mastery[area] = total / Double(applicable.count)
             }
             return ThemeProgress(
                 theme: theme,
@@ -118,7 +130,7 @@ public enum PathPlanner {
 
         var fresh: [StudyItem] = []
         for word in themeWords {
-            let translationKnown = (word.schedules[.translation]?.repetitions ?? 0) >= 1
+            let translationKnown = word.level(in: .translation) >= 1
             for area in StudyArea.allCases {
                 guard let state = word.schedules[area], state.isNew else { continue }
                 if area != .translation && !translationKnown { continue }
@@ -158,17 +170,18 @@ public enum PathPlanner {
         return bonus(words, now: now, limit: limit, excluding: excluded, using: &rng)
     }
 
-    /// From recognising to producing: multiple choice for new or just-missed words,
-    /// then typing, then typing or speaking with an occasional multiple choice.
+    /// From recognising to producing, by the word's level in the area: multiple choice
+    /// for new or just-missed words, then typing, then typing or speaking with an
+    /// occasional multiple choice.
     public static func kind<R: RandomNumberGenerator>(
-        for state: SRSState,
+        level: Int,
         area: StudyArea,
         allowSpeaking: Bool,
         using rng: inout R
     ) -> ExerciseKind {
         let typing: [ExerciseKind] = area == .translation ? [.typeGerman, .typeEnglish] : [.typeGerman]
-        switch state.repetitions {
-        case 0:
+        switch level {
+        case ...0:
             return .multipleChoice
         case 1:
             return typing.randomElement(using: &rng) ?? .typeGerman

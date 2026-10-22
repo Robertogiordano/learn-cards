@@ -39,6 +39,13 @@ final class Word {
     var pluralDueDate: Date = Date.distantPast
     var pluralLastReviewed: Date? = nil
 
+    // Correct answers in a row per area, counting practice too: drives the path's
+    // percentages and stars. -1 means "not tracked yet" (stores created before v3),
+    // in which case the schedule's repetitions stand in.
+    var translationStreak: Int = -1
+    var articleStreak: Int = -1
+    var pluralStreak: Int = -1
+
     var timesCorrect: Int
     var timesWrong: Int
 
@@ -148,6 +155,25 @@ final class Word {
 
     func isApplicable(to area: StudyArea) -> Bool { area.isApplicable(to: entry) }
 
+    /// Correct answers in a row in an area (falls back to the schedule for older data).
+    func streak(for area: StudyArea) -> Int {
+        let stored: Int
+        switch area {
+        case .translation: stored = translationStreak
+        case .article: stored = articleStreak
+        case .plural: stored = pluralStreak
+        }
+        return stored >= 0 ? stored : srs(for: area).repetitions
+    }
+
+    func setStreak(_ value: Int, for area: StudyArea) {
+        switch area {
+        case .translation: translationStreak = value
+        case .article: articleStreak = value
+        case .plural: pluralStreak = value
+        }
+    }
+
     /// Due in an area the word takes part in.
     func isDue(in area: StudyArea, now: Date = .now) -> Bool {
         isApplicable(to: area) && srs(for: area).isDue(at: now)
@@ -163,10 +189,12 @@ final class Word {
     /// The word as the guided path sees it: one schedule per area it takes part in.
     var pathWord: PathWord {
         var schedules: [StudyArea: SRSState] = [:]
+        var streaks: [StudyArea: Int] = [:]
         for area in StudyArea.allCases where isApplicable(to: area) {
             schedules[area] = srs(for: area)
+            streaks[area] = streak(for: area)
         }
-        return PathWord(id: id, category: category, createdAt: createdAt, schedules: schedules)
+        return PathWord(id: id, category: category, createdAt: createdAt, schedules: schedules, streaks: streaks)
     }
 
     var backup: BackupWord {

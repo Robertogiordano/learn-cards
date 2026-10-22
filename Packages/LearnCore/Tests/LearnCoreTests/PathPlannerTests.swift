@@ -45,6 +45,24 @@ final class PathPlannerTests: XCTestCase {
         XCTAssertTrue(cibo.hasStar(.article))
     }
 
+    func testProgressAdvancesWithEveryRightAnswer() throws {
+        var word = noun("Cibo")
+        let theme = { try XCTUnwrap(PathPlanner.themeProgress([word]).first) }
+        XCTAssertEqual(try theme().mastery[.translation], 0)
+
+        // Practice the same day: the schedule does not move, the streak does.
+        word.streaks[.translation] = 1
+        XCTAssertEqual(try theme().mastery[.translation], 0.5)
+        word.streaks[.translation] = 3
+        XCTAssertEqual(try theme().mastery[.translation], 1)
+        XCTAssertTrue(try theme().hasStar(.translation))
+
+        // A mistake starts over even if the schedule still says "learned".
+        word.schedules[.translation] = state(reps: 4)
+        word.streaks[.translation] = 0
+        XCTAssertEqual(try theme().mastery[.translation], 0)
+    }
+
     func testAreaWithoutApplicableWordsHasNoMastery() throws {
         let progress = try XCTUnwrap(PathPlanner.themeProgress([verb("Azioni", translation: state(reps: 2))]).first)
         XCTAssertNil(progress.mastery[.article])
@@ -109,11 +127,11 @@ final class PathPlannerTests: XCTestCase {
 
     func testKindFollowsTheStage() {
         var rng = SeededGenerator(state: 9)
-        XCTAssertEqual(PathPlanner.kind(for: state(reps: 0), area: .translation, allowSpeaking: true, using: &rng), .multipleChoice)
+        XCTAssertEqual(PathPlanner.kind(level: 0, area: .translation, allowSpeaking: true, using: &rng), .multipleChoice)
         for _ in 0..<20 {
-            let second = PathPlanner.kind(for: state(reps: 1), area: .article, allowSpeaking: true, using: &rng)
+            let second = PathPlanner.kind(level: 1, area: .article, allowSpeaking: true, using: &rng)
             XCTAssertEqual(second, .typeGerman)
-            let later = PathPlanner.kind(for: state(reps: 4), area: .plural, allowSpeaking: false, using: &rng)
+            let later = PathPlanner.kind(level: 4, area: .plural, allowSpeaking: false, using: &rng)
             XCTAssertNotEqual(later, .speakGerman)
             XCTAssertNotEqual(later, .typeEnglish)
         }
