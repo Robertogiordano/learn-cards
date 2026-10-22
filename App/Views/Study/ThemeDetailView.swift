@@ -158,10 +158,12 @@ struct ThemeDetailView: View {
         .padding(.vertical, 6)
     }
 
-    /// Due reviews first, then new words, then the ones closest to being due.
+    /// Due reviews first, then new words, then the weakest in the chosen exercise, rotating.
     /// `policy` is automatic (by how well each word is known) or one chosen kind of exercise.
     private func start(_ area: StudyArea, words: [Word], policy: KindPolicy) {
-        let candidates = words.map { $0.candidate(for: area) }
+        let kind: ExerciseKind?
+        if case .fixed(let chosen) = policy { kind = chosen } else { kind = nil }
+        let candidates = words.map { $0.candidate(for: area, kind: kind) }
         let speakingOnly: Bool
         if case .fixed(.speakGerman?) = policy { speakingOnly = true } else { speakingOnly = false }
         Task { @MainActor in

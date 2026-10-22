@@ -221,8 +221,10 @@ final class Word {
     /// Due in any area: drives the dot in the vocabulary list.
     var isDueAnywhere: Bool { StudyArea.allCases.contains { isDue(in: $0) } }
 
-    func candidate(for area: StudyArea) -> StudyCandidate {
-        StudyCandidate(id: id, srs: srs(for: area), createdAt: createdAt)
+    /// `kind` is the exercise being trained; nil weighs the whole area.
+    func candidate(for area: StudyArea, kind: ExerciseKind? = nil) -> StudyCandidate {
+        let level = kind.map { kindStreak(for: area, kind: $0) } ?? streak(for: area)
+        return StudyCandidate(id: id, srs: srs(for: area), createdAt: createdAt, level: level)
     }
 
     /// The word as the guided path sees it: one schedule per area it takes part in.

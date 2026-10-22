@@ -57,6 +57,8 @@ struct VerbsView: View {
     @State private var alertMessage: String?
 
     private static let sessionLength = 10
+    /// New verbs per session when there are reviews too: a few at a time stick better.
+    private static let newPerSession = 4
 
     private var scoped: [Verb] {
         group.map { selected in verbs.filter { $0.group == selected } } ?? verbs
@@ -190,16 +192,19 @@ struct VerbsView: View {
         .buttonStyle(.plain)
     }
 
-    /// Due verbs first, then new ones, then the closest to being due.
+    /// Due verbs first, then a few new ones, then the weakest in the chosen exercise, rotating.
     private func start(_ policy: VerbPolicy, wantsSpeaking: Bool) {
-        let candidates = scoped.map(\.candidate)
+        let kind: VerbExerciseKind?
+        if case .fixed(let chosen) = policy { kind = chosen } else { kind = nil }
+        let candidates = scoped.map { $0.candidate(for: kind) }
         Task { @MainActor in
             let allowSpeaking = wantsSpeaking ? await SpeechRecognizer.requestPermissions() : false
             if case .fixed(let kind) = policy, kind.isSpeaking, !allowSpeaking {
                 alertMessage = SpeechRecognizer.permissionDeniedMessage
                 return
             }
-            let ids = SessionPlanner.select(candidates, now: .now, limit: Self.sessionLength, includeNotDue: true)
+            let ids = SessionPlanner.select(candidates, now: .now, limit: Self.sessionLength, includeNotDue: true,
+                                             newLimit: Self.newPerSession)
             guard !ids.isEmpty else { return }
             activeSession = StudySession(steps: ids.map { .verb($0) }, allWords: words, allVerbs: verbs,
                                          kindPolicy: .adaptive, verbPolicy: policy,

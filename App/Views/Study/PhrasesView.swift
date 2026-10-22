@@ -55,6 +55,8 @@ struct PhrasesView: View {
     @State private var alertMessage: String?
 
     private static let sessionLength = 10
+    /// New phrases per session when there are reviews too: a few at a time stick better.
+    private static let newPerSession = 4
 
     private var scoped: [Phrase] {
         category.map { selected in phrases.filter { $0.category == selected } } ?? phrases
@@ -173,16 +175,19 @@ struct PhrasesView: View {
         .buttonStyle(.plain)
     }
 
-    /// Due phrases first, then new ones, then the closest to being due.
+    /// Due phrases first, then a few new ones, then the weakest in the chosen exercise, rotating.
     private func start(_ policy: PhrasePolicy, wantsSpeaking: Bool) {
-        let candidates = scoped.map(\.candidate)
+        let kind: PhraseExerciseKind?
+        if case .fixed(let chosen) = policy { kind = chosen } else { kind = nil }
+        let candidates = scoped.map { $0.candidate(for: kind) }
         Task { @MainActor in
             let allowSpeaking = wantsSpeaking ? await SpeechRecognizer.requestPermissions() : false
             if case .fixed(.speak) = policy, !allowSpeaking {
                 alertMessage = SpeechRecognizer.permissionDeniedMessage
                 return
             }
-            let ids = SessionPlanner.select(candidates, now: .now, limit: Self.sessionLength, includeNotDue: true)
+            let ids = SessionPlanner.select(candidates, now: .now, limit: Self.sessionLength, includeNotDue: true,
+                                             newLimit: Self.newPerSession)
             guard !ids.isEmpty else { return }
             activeSession = StudySession(steps: ids.map { .phrase($0) }, allWords: words, allPhrases: phrases,
                                          kindPolicy: .adaptive, phrasePolicy: policy,

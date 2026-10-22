@@ -95,7 +95,11 @@ final class Verb {
 
     var isDue: Bool { dueDate <= .now }
 
-    var candidate: StudyCandidate { StudyCandidate(id: id, srs: srs, createdAt: createdAt) }
+    /// `kind` is the exercise being trained; nil weighs the verb as a whole.
+    func candidate(for kind: VerbExerciseKind? = nil) -> StudyCandidate {
+        let level = kind.map { kindStreaks[$0] ?? 0 } ?? streak
+        return StudyCandidate(id: id, srs: srs, createdAt: createdAt, level: level)
+    }
 
     var kindStreaks: [VerbExerciseKind: Int] {
         get {

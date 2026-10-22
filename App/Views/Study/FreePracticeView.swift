@@ -142,7 +142,7 @@ struct FreePracticeView: View {
     private func start(extra: Bool) {
         let mode = self.mode
         let area = self.area
-        let candidates = studyWords.map { $0.candidate(for: area) }
+        let candidates = studyWords.map { $0.candidate(for: area, kind: mode.kind) }
         Task { @MainActor in
             var allowSpeaking = false
             if mode == .speakGerman || (mode == .mixed && speakingInMixed) {

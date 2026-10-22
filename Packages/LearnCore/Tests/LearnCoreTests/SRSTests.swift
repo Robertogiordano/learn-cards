@@ -95,4 +95,53 @@ final class SRSTests: XCTestCase {
         XCTAssertEqual(SessionPlanner.select(all, now: now, limit: 10, includeNotDue: true), [overdue.id, reviewed.id, fresh.id, future.id])
         XCTAssertEqual(SessionPlanner.dueCount(all, now: now), 3)
     }
+
+    /// Practising again on the same day: nothing is due, so the extra items must rotate.
+    func testExtraPracticeRotatesAndSkipsMastered() {
+        let old = now.addingTimeInterval(-86_400)
+        func seen(level: Int) -> StudyCandidate {
+            StudyCandidate(
+                id: UUID(),
+                srs: SRSState(ease: 2.5, intervalDays: 3, repetitions: 2, lapses: 0,
+                              dueDate: now.addingTimeInterval(86_400 * 2), lastReviewed: old),
+                createdAt: old, level: level
+            )
+        }
+        let weak = (0..<6).map { _ in seen(level: 0) }
+        let half = (0..<6).map { _ in seen(level: 1) }
+        let mastered = (0..<6).map { _ in seen(level: 2) }
+        let all = mastered + half + weak
+
+        var first = SeededGenerator(state: 1)
+        var second = SeededGenerator(state: 2)
+        let a = SessionPlanner.select(all, now: now, limit: 10, includeNotDue: true, using: &first)
+        let b = SessionPlanner.select(all, now: now, limit: 10, includeNotDue: true, using: &second)
+        let weakIDs = Set(weak.map(\.id)), halfIDs = Set(half.map(\.id))
+        // The weakest come first, then the half-known; mastered ones are left out.
+        XCTAssertEqual(Set(a.prefix(6)), weakIDs)
+        XCTAssertTrue(Set(a.suffix(4)).isSubset(of: halfIDs))
+        XCTAssertTrue(Set(a).isDisjoint(with: mastered.map(\.id)))
+        // Different sessions do not repeat the same order.
+        XCTAssertNotEqual(a, b)
+
+        // Mastered items still fill a session when nothing else is left.
+        var rng = SeededGenerator(state: 3)
+        XCTAssertEqual(SessionPlanner.select(mastered, now: now, limit: 10, includeNotDue: true, using: &rng).count, 6)
+    }
+
+    func testNewLimitOnlyWithReviews() {
+        let old = now.addingTimeInterval(-86_400 * 3)
+        let review = StudyCandidate(
+            id: UUID(),
+            srs: SRSState(ease: 2.5, intervalDays: 1, repetitions: 1, lapses: 0, dueDate: old, lastReviewed: old),
+            createdAt: old
+        )
+        let fresh = (0..<8).map { offset in
+            StudyCandidate(id: UUID(), srs: .new(now: old), createdAt: old.addingTimeInterval(Double(offset)))
+        }
+        let withReview = SessionPlanner.select([review] + fresh, now: now, limit: 10, includeNotDue: true, newLimit: 4)
+        XCTAssertEqual(withReview, [review.id] + fresh.prefix(4).map(\.id))
+        let onlyNew = SessionPlanner.select(fresh, now: now, limit: 10, includeNotDue: true, newLimit: 4)
+        XCTAssertEqual(onlyNew.count, 8)
+    }
 }

@@ -115,6 +115,12 @@ final class StudySession: ObservableObject, Identifiable {
     private var currentStep: SessionStep?
     private var hasShownBonus = false
     private var graded: Set<SessionStep> = []
+    /// Times each step came back after a mistake in this session.
+    private var repeats: [SessionStep: Int] = [:]
+    /// A mistake comes back at most this many times, then the next session takes it up again.
+    private static let maxRepeats = 2
+    /// Questions in between before a missed one comes back.
+    private static let repeatGap = 3
     /// The current number question was graded on this attempt (so "I was right" can redo it).
     private var numberWasGraded = false
     /// State before the last first-attempt grading, so "I was right" can redo it.
@@ -228,7 +234,7 @@ final class StudySession: ObservableObject, Identifiable {
             results[verdict, default: 0] += 1
         }
         if verdict == .wrong {
-            queue.append(currentStep)
+            requeueMissed(currentStep)
         }
         feedback = AnswerFeedback(verdict: verdict, given: given, recheck: recheck)
     }
@@ -249,7 +255,7 @@ final class StudySession: ObservableObject, Identifiable {
             results[verdict, default: 0] += 1
         }
         if verdict == .wrong {
-            queue.append(currentStep)
+            requeueMissed(currentStep)
         }
         feedback = AnswerFeedback(verdict: verdict, given: given)
     }
@@ -273,7 +279,7 @@ final class StudySession: ObservableObject, Identifiable {
             results[verdict, default: 0] += 1
         }
         if verdict == .wrong {
-            queue.append(currentStep)
+            requeueMissed(currentStep)
         }
         feedback = AnswerFeedback(verdict: verdict, given: given)
     }
@@ -304,7 +310,7 @@ final class StudySession: ObservableObject, Identifiable {
             results[verdict, default: 0] += 1
         }
         if verdict == .wrong {
-            queue.append(currentStep)
+            requeueMissed(currentStep)
         }
         feedback = AnswerFeedback(verdict: verdict, given: given)
     }
@@ -323,6 +329,20 @@ final class StudySession: ObservableObject, Identifiable {
         try? context.save()
     }
 
+    /// A missed step comes back a few questions later, at most `maxRepeats` times.
+    private func requeueMissed(_ step: SessionStep) {
+        guard repeats[step, default: 0] < Self.maxRepeats else { return }
+        repeats[step, default: 0] += 1
+        queue.insert(step, at: min(Self.repeatGap, queue.count))
+    }
+
+    /// Takes back `requeueMissed` when a wrong verdict turns out to be right.
+    private func cancelRequeue(_ step: SessionStep) {
+        guard let index = queue.firstIndex(of: step) else { return }
+        queue.remove(at: index)
+        repeats[step, default: 1] -= 1
+    }
+
     /// The learner says the answer was right (synonym, recognizer mistake, ...).
     func overrideAsCorrect() {
         guard let feedback, feedback.verdict != .correct else { return }
@@ -331,8 +351,8 @@ final class StudySession: ObservableObject, Identifiable {
             self.loggedMistake = nil
         }
         if let verbQuestion, let currentStep, let verb = verbsByID[verbQuestion.entry.id] {
-            if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
-                queue.remove(at: index)
+            if feedback.verdict == .wrong {
+                cancelRequeue(currentStep)
             }
             if let verbSnapshot {
                 verb.srs = verbSnapshot.srs
@@ -346,8 +366,8 @@ final class StudySession: ObservableObject, Identifiable {
             }
             self.feedback?.verdict = .correct
         } else if let phraseQuestion, let currentStep, let phrase = phrasesByID[phraseQuestion.entry.id] {
-            if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
-                queue.remove(at: index)
+            if feedback.verdict == .wrong {
+                cancelRequeue(currentStep)
             }
             if let phraseSnapshot {
                 phrase.srs = phraseSnapshot.srs
@@ -361,8 +381,8 @@ final class StudySession: ObservableObject, Identifiable {
             }
             self.feedback?.verdict = .correct
         } else if let numberExercise, let currentStep {
-            if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
-                queue.remove(at: index)
+            if feedback.verdict == .wrong {
+                cancelRequeue(currentStep)
             }
             if numberWasGraded {
                 NumberStatsStore.shared.replaceLast(with: true, number: numberExercise.number,
@@ -403,12 +423,12 @@ final class StudySession: ObservableObject, Identifiable {
         guard let exercise, let currentStep, let current, let feedback, let word = wordsByID[current.wordID],
               verdict != feedback.verdict else { return }
 
-        // Only wrong answers sit at the back of the queue.
-        if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
-            queue.remove(at: index)
+        // Only wrong answers come back later in the session.
+        if feedback.verdict == .wrong {
+            cancelRequeue(currentStep)
         }
         if verdict == .wrong {
-            queue.append(currentStep)
+            requeueMissed(currentStep)
         }
         if let snapshot, snapshot.item == current {
             word.setSRS(snapshot.srs, for: current.area)
