@@ -219,3 +219,32 @@ struct SpeechAnswerView: View {
         }
     }
 }
+
+/// Top-right switch on the exercise cards: hides or shows the emoji in every exercise.
+struct EmojiToggleButton: View {
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
+
+    var body: some View {
+        Button {
+            showEmoji.toggle()
+        } label: {
+            Image(systemName: showEmoji ? "eye" : "eye.slash")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(showEmoji ? "Nascondi emoji" : "Mostra emoji")
+    }
+}
+
+extension View {
+    /// Places the emoji switch in the top-right corner of an exercise card.
+    func emojiToggle() -> some View {
+        overlay(alignment: .topTrailing) {
+            EmojiToggleButton()
+                .padding(6)
+        }
+    }
+}

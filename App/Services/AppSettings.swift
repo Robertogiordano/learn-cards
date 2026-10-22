@@ -16,6 +16,8 @@ enum SettingsKey {
     static let vocabularyKind = "vocabularyKind"
     static let speakingInMixed = "speakingInMixed"
     static let autoSpeak = "autoSpeak"
+    /// Emoji on the exercise cards; toggled from the card itself or from Settings.
+    static let showEmoji = "showEmoji"
     static let lastExport = "lastExportDate"
     static let dailyGoalMinutes = "dailyGoalMinutes"
     static let reminderEnabled = "reminderEnabled"

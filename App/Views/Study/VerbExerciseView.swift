@@ -83,6 +83,8 @@ private struct VerbPromptCard: View {
     let question: VerbQuestion
     let isAnswered: Bool
 
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
+
     private var verb: VerbEntry { question.entry }
 
     private var instruction: String {
@@ -104,8 +106,9 @@ private struct VerbPromptCard: View {
             Text(instruction)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 28)
             // The emoji would give the meaning away when it is the question.
-            if question.kind != .translateEnglish || isAnswered {
+            if showEmoji, question.kind != .translateEnglish || isAnswered {
                 Text(verb.emoji)
                     .font(.system(size: 52))
             }
@@ -150,6 +153,7 @@ private struct VerbPromptCard: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .emojiToggle()
     }
 }
 
@@ -291,6 +295,7 @@ private struct VerbFeedbackPanel: View {
     let onContinue: () -> Void
 
     @AppStorage(SettingsKey.autoSpeak) private var autoSpeak = true
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
     @State private var isEditing = false
 
     private var verb: VerbEntry { question.entry }
@@ -346,7 +351,7 @@ private struct VerbFeedbackPanel: View {
 
             if question.kind.isTranslation {
                 HStack {
-                    Text("\(verb.emoji) \(verb.infinitive)")
+                    Text(showEmoji ? "\(verb.emoji) \(verb.infinitive)" : verb.infinitive)
                         .font(.title3.bold())
                     Button {
                         Speaker.shared.speak(spoken)

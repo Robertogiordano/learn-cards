@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @AppStorage(SettingsKey.autoSpeak) private var autoSpeak = true
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
     @AppStorage(SettingsKey.phraseImportWords) private var phraseImportWords = true
     @AppStorage(SettingsKey.phraseImportVerbs) private var phraseImportVerbs = true
     @AppStorage(SettingsKey.lastExport) private var lastExport: Double = 0
@@ -209,6 +210,7 @@ struct SettingsView: View {
             Stepper("Parole per sessione libera o tema: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
             Toggle("Pronuncia nel misto", isOn: $speakingInMixed)
             Toggle("Leggi ad alta voce la soluzione", isOn: $autoSpeak)
+            Toggle("Mostra le emoji negli esercizi", isOn: $showEmoji)
         }
     }
 

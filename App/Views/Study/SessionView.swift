@@ -131,13 +131,16 @@ struct PromptCard: View {
     let exercise: Exercise
     let isAnswered: Bool
 
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
+
     var body: some View {
         VStack(spacing: 10) {
             Text(exercise.instruction)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 28)
             // The emoji would give a German → English answer away, so it waits.
-            if exercise.kind != .typeEnglish || isAnswered {
+            if showEmoji, exercise.kind != .typeEnglish || isAnswered {
                 Text(exercise.entry.emoji)
                     .font(.system(size: 72))
             }
@@ -166,6 +169,7 @@ struct PromptCard: View {
                 RoundedRectangle(cornerRadius: 20).fill(.thinMaterial)
             }
         }
+        .emojiToggle()
     }
 
     /// Translation cards are tinted by the noun's gender; elsewhere the colour would give the answer away.
@@ -176,6 +180,7 @@ struct PromptCard: View {
 }
 
 struct FeedbackPanel: View {
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
     let exercise: Exercise
     let feedback: AnswerFeedback
     let themes: [String]
@@ -237,7 +242,7 @@ struct FeedbackPanel: View {
             }
 
             HStack {
-                Text("\(exercise.entry.emoji) \(solution)")
+                Text(showEmoji ? "\(exercise.entry.emoji) \(solution)" : solution)
                     .font(.title3.bold())
                     .multilineTextAlignment(.center)
                 Button {

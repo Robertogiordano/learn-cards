@@ -55,6 +55,8 @@ private struct PhrasePromptCard: View {
     let question: PhraseQuestion
     let isAnswered: Bool
 
+    @AppStorage(SettingsKey.showEmoji) private var showEmoji = true
+
     private var entry: PhraseEntry { question.entry }
 
     private var instruction: String {
@@ -73,8 +75,11 @@ private struct PhrasePromptCard: View {
             Text(instruction)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(entry.emoji)
-                .font(.system(size: 52))
+                .padding(.horizontal, 28)
+            if showEmoji {
+                Text(entry.emoji)
+                    .font(.system(size: 52))
+            }
 
             switch question.kind {
             case .questionFromAnswer:
@@ -123,6 +128,7 @@ private struct PhrasePromptCard: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .emojiToggle()
         .onAppear {
             if question.kind == .dictation {
                 Speaker.shared.speak(entry.german)

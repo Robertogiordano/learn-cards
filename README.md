@@ -48,6 +48,7 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
   - scegli 5, 10, 15 o 20 minuti al giorno; conta il **tempo attivo** negli esercizi (pause lunghe escluse), con anello di avanzamento, **serie di giorni** (un giorno saltato a settimana è perdonato), **storico** a 7/30 giorni e **promemoria** locale solo nei giorni in cui l'obiettivo non è ancora raggiunto;
   - ogni giorno l'app prepara in locale una **lezione** della durata dell'obiettivo: i tuoi errori recenti (registrati con risposta data e risposta giusta), due temi in focus che ruotano, il ripasso in scadenza, qualche novità e un po' di numeri. Si riprende da dove l'hai lasciata e alla fine chiede "troppo facile / giusta / troppo difficile" per regolare le lezioni successive;
   - **Chiedi al coach** (su richiesta, OpenRouter): scrivi cosa vuoi oggi ("domani ho una verifica sui separabili"); il coach riceve un riassunto dei tuoi progressi ed errori e assembla la lezione **solo con il tuo materiale**, con un breve messaggio sul perché.
+- L'icona a forma di occhio in alto a destra di ogni card nasconde o mostra le emoji in tutti gli esercizi; la stessa scelta è in **Impostazioni → Studio**.
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 
