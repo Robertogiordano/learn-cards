@@ -14,6 +14,8 @@ struct PathView: View {
     @AppStorage(SettingsKey.numbersLevel) private var numbersLevelRaw = NumberLevel.upTo20.rawValue
     @State private var activeSession: StudySession?
     @State private var isAskingCoach = false
+    /// Set by the coach: the lesson starts once its sheet has finished closing.
+    @State private var startLessonAfterCoach = false
     @ObservedObject private var lessons = LessonStore.shared
 
     /// Number questions mixed into every bonus.
@@ -40,10 +42,17 @@ struct PathView: View {
             .fullScreenCover(item: $activeSession) { session in
                 SessionView(session: session)
             }
-            .sheet(isPresented: $isAskingCoach) {
+            // Presenting the session while the coach sheet is still closing leaves it
+            // without a background: start it from onDismiss instead.
+            .sheet(isPresented: $isAskingCoach, onDismiss: {
+                if startLessonAfterCoach {
+                    startLessonAfterCoach = false
+                    startLesson()
+                }
+            }) {
                 CoachSheet { lesson in
                     lessons.replace(with: lesson)
-                    startLesson()
+                    startLessonAfterCoach = true
                 }
             }
             .onAppear(perform: prepareTodaysLesson)

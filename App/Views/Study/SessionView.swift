@@ -41,6 +41,9 @@ struct SessionView: View {
                     .id(verb.id)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Never let the screen underneath show through.
+            .background(Color(uiColor: .systemBackground).ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
