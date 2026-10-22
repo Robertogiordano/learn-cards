@@ -16,7 +16,36 @@ enum VocabularySort: String, CaseIterable, Identifiable {
     }
 }
 
+/// The Vocabolario tab: words or phrases.
 struct VocabularyView: View {
+    @AppStorage(SettingsKey.vocabularyKind) private var kindRaw = ImportKind.words.rawValue
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if kindRaw == ImportKind.phrases.rawValue {
+                    PhrasesListView()
+                } else {
+                    WordsListView()
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Mostra", selection: $kindRaw) {
+                        ForEach(ImportKind.allCases) { kind in
+                            Text(kind.title).tag(kind.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                }
+            }
+        }
+    }
+}
+
+struct WordsListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Word.createdAt, order: .reverse) private var words: [Word]
     @State private var search = ""
@@ -53,7 +82,7 @@ struct VocabularyView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        Group {
             List {
                 if !words.isEmpty {
                     Text("\(words.count) parole in \(words.categories.count) temi · \(dueCount) da ripassare")

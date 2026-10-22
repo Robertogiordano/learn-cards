@@ -8,6 +8,7 @@ struct OpenRouterClient {
         case http(status: Int, message: String)
         case emptyResponse
         case noWords
+        case noPhrases
 
         var errorDescription: String? {
             switch self {
@@ -25,6 +26,8 @@ struct OpenRouterClient {
                 return "Il modello non ha restituito alcuna risposta."
             case .noWords:
                 return "Nessuna parola tedesca trovata nella foto."
+            case .noPhrases:
+                return "Nessuna frase tedesca trovata nella foto."
             }
         }
     }
@@ -37,21 +40,50 @@ struct OpenRouterClient {
 
     private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
+    /// What to ask the model for one kind of extraction.
+    private struct Request {
+        let system: String
+        let instruction: String
+        let schemaName: String
+        let schema: [String: Any]
+    }
+
     func extractVocabulary(fromJPEG jpeg: Data) async throws -> [VocabEntry] {
-        guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
-        let content: String
-        do {
-            content = try await complete(jpeg: jpeg, structured: true)
-        } catch ClientError.http(let status, _) where status == 400 {
-            // Some models reject structured outputs: retry with the prompt alone.
-            content = try await complete(jpeg: jpeg, structured: false)
-        }
+        let content = try await extract(jpeg: jpeg, request: Request(
+            system: ExtractionPrompt.system(existingCategories: existingCategories),
+            instruction: ExtractionPrompt.userInstruction,
+            schemaName: "vocabulary",
+            schema: ExtractionPrompt.responseSchema
+        ))
         let entries = try ExtractionParser.parse(content, existingCategories: existingCategories)
         guard !entries.isEmpty else { throw ClientError.noWords }
         return entries
     }
 
-    private func complete(jpeg: Data, structured: Bool) async throws -> String {
+    /// Sentences and idioms; gap exercises (e.g. "find the question") come back solved.
+    func extractPhrases(fromJPEG jpeg: Data) async throws -> [PhraseEntry] {
+        let content = try await extract(jpeg: jpeg, request: Request(
+            system: PhraseExtractionPrompt.system(existingCategories: existingCategories),
+            instruction: PhraseExtractionPrompt.userInstruction,
+            schemaName: "phrases",
+            schema: PhraseExtractionPrompt.responseSchema
+        ))
+        let phrases = try PhraseExtractionParser.parse(content, existingCategories: existingCategories)
+        guard !phrases.isEmpty else { throw ClientError.noPhrases }
+        return phrases
+    }
+
+    private func extract(jpeg: Data, request: Request) async throws -> String {
+        guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
+        do {
+            return try await complete(jpeg: jpeg, request: request, structured: true)
+        } catch ClientError.http(let status, _) where status == 400 {
+            // Some models reject structured outputs: retry with the prompt alone.
+            return try await complete(jpeg: jpeg, request: request, structured: false)
+        }
+    }
+
+    private func complete(jpeg: Data, request extraction: Request, structured: Bool) async throws -> String {
         var request = URLRequest(url: Self.endpoint, timeoutInterval: 120)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -59,15 +91,12 @@ struct OpenRouterClient {
         request.setValue("https://github.com/robertogiordano/learn-cards", forHTTPHeaderField: "HTTP-Referer")
         request.setValue("LearnCards", forHTTPHeaderField: "X-Title")
 
-        let textPart: [String: Any] = ["type": "text", "text": ExtractionPrompt.userInstruction]
+        let textPart: [String: Any] = ["type": "text", "text": extraction.instruction]
         let imagePart: [String: Any] = [
             "type": "image_url",
             "image_url": ["url": "data:image/jpeg;base64,\(jpeg.base64EncodedString())"],
         ]
-        let systemMessage: [String: Any] = [
-            "role": "system",
-            "content": ExtractionPrompt.system(existingCategories: existingCategories),
-        ]
+        let systemMessage: [String: Any] = ["role": "system", "content": extraction.system]
         let userMessage: [String: Any] = ["role": "user", "content": [textPart, imagePart]]
         var body: [String: Any] = [
             "model": model,
@@ -76,9 +105,9 @@ struct OpenRouterClient {
         ]
         if structured {
             let schema: [String: Any] = [
-                "name": "vocabulary",
+                "name": extraction.schemaName,
                 "strict": true,
-                "schema": ExtractionPrompt.responseSchema,
+                "schema": extraction.schema,
             ]
             let responseFormat: [String: Any] = ["type": "json_schema", "json_schema": schema]
             body["response_format"] = responseFormat

@@ -126,13 +126,16 @@ public struct Backup: Codable, Sendable {
     public var words: [BackupWord]
     /// Number practice history; absent in older backups.
     public var numbers: NumberStats?
+    /// Sentences and idioms; absent in older backups.
+    public var phrases: [BackupPhrase]?
 
     public init(schemaVersion: Int = Backup.currentSchemaVersion, exportedAt: Date, words: [BackupWord],
-                numbers: NumberStats? = nil) {
+                numbers: NumberStats? = nil, phrases: [BackupPhrase]? = nil) {
         self.schemaVersion = schemaVersion
         self.exportedAt = exportedAt
         self.words = words
         self.numbers = numbers
+        self.phrases = phrases
     }
 }
 
@@ -197,6 +200,95 @@ public enum BackupMerger {
                 }
             } else {
                 result.inserts.append(word)
+            }
+        }
+        return result
+    }
+}
+
+/// A phrase as written in a backup file, with its learning history.
+public struct BackupPhrase: Codable, Hashable, Sendable {
+    public var id: UUID
+    public var german: String
+    public var variants: [String]
+    public var english: String
+    public var response: String?
+    public var note: String?
+    public var kind: PhraseKind
+    public var category: String
+    public var emoji: String
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var srs: SRSState
+    /// Right answers in a row, any kind of exercise (drives the automatic kind).
+    public var streak: Int
+    /// Right answers in a row per kind of exercise (keyed by its raw value): the percentages.
+    public var kindStreaks: [String: Int]
+
+    public init(entry: PhraseEntry, createdAt: Date, updatedAt: Date, srs: SRSState,
+                streak: Int = 0, kindStreaks: [PhraseExerciseKind: Int] = [:]) {
+        id = entry.id
+        german = entry.german
+        variants = entry.variants
+        english = entry.english
+        response = entry.response
+        note = entry.note
+        kind = entry.kind
+        category = entry.category
+        emoji = entry.emoji
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.srs = srs
+        self.streak = streak
+        self.kindStreaks = Dictionary(uniqueKeysWithValues: kindStreaks.map { ($0.key.rawValue, $0.value) })
+    }
+
+    public var entry: PhraseEntry {
+        PhraseEntry(id: id, german: german, variants: variants, english: english, response: response,
+                    note: note, kind: kind, category: category, emoji: emoji)
+    }
+
+    public var streaksByKind: [PhraseExerciseKind: Int] {
+        var result: [PhraseExerciseKind: Int] = [:]
+        for (key, value) in kindStreaks {
+            if let kind = PhraseExerciseKind(rawValue: key) { result[kind] = value }
+        }
+        return result
+    }
+
+    public var dedupeKey: String { PhraseChecker.key(german) }
+
+    public var lastActivity: Date { max(updatedAt, srs.lastReviewed ?? .distantPast) }
+}
+
+public struct PhraseMergeResult: Sendable {
+    public var inserts: [BackupPhrase]
+    /// Newer copies of existing phrases, already carrying the existing phrase's id.
+    public var updates: [BackupPhrase]
+    public var skipped: Int
+}
+
+public enum BackupPhraseMerger {
+    /// Matches by id first, then by normalized German; the copy with the latest activity wins.
+    public static func merge(existing: [BackupPhrase], incoming: [BackupPhrase]) -> PhraseMergeResult {
+        let byID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let byKey = Dictionary(existing.map { ($0.dedupeKey, $0) }, uniquingKeysWith: { first, _ in first })
+        var result = PhraseMergeResult(inserts: [], updates: [], skipped: 0)
+        var seenKeys = Set<String>()
+        for var phrase in incoming {
+            guard seenKeys.insert(phrase.dedupeKey).inserted else {
+                result.skipped += 1
+                continue
+            }
+            if let match = byID[phrase.id] ?? byKey[phrase.dedupeKey] {
+                if phrase.lastActivity > match.lastActivity {
+                    phrase.id = match.id
+                    result.updates.append(phrase)
+                } else {
+                    result.skipped += 1
+                }
+            } else {
+                result.inserts.append(phrase)
             }
         }
         return result

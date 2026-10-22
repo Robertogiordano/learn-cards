@@ -25,6 +25,13 @@ struct SessionView: View {
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .id(number.id)
+                } else if let phrase = session.phraseQuestion {
+                    ScrollView {
+                        PhraseExerciseView(question: phrase, session: session)
+                            .padding()
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .id(phrase.id)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

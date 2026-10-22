@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var words: [Word]
+    @Query private var phrases: [Phrase]
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
     @AppStorage(SettingsKey.sessionSize) private var sessionSize = 20
     @AppStorage(SettingsKey.lessonNewWords) private var lessonNewWords = 8
@@ -41,7 +42,7 @@ struct SettingsView: View {
                 switch result {
                 case .success:
                     lastExport = Date().timeIntervalSince1970
-                    message = "Backup esportato: \(words.count) parole."
+                    message = "Backup esportato: \(words.count) parole e \(phrases.count) frasi."
                 case .failure(let error):
                     message = error.localizedDescription
                 }
@@ -50,7 +51,7 @@ struct SettingsView: View {
                 switch result {
                 case .success(let url):
                     do {
-                        pendingImport = try BackupService.prepareImport(from: url, existing: words)
+                        pendingImport = try BackupService.prepareImport(from: url, existing: words, existingPhrases: phrases)
                     } catch {
                         message = "Backup non valido: \(error.localizedDescription)"
                     }
@@ -64,19 +65,19 @@ struct SettingsView: View {
                 titleVisibility: .visible,
                 presenting: pendingImport
             ) { pending in
-                Button("Unisci: \(pending.merge.inserts.count) nuove, \(pending.merge.updates.count) aggiornate") {
-                    run(success: "Import completato: \(pending.merge.inserts.count) nuove, \(pending.merge.updates.count) aggiornate.") {
-                        try BackupService.applyMerge(pending, existing: words, context: context)
+                Button("Unisci: \(pending.newCount) nuove, \(pending.updatedCount) aggiornate") {
+                    run(success: "Import completato: \(pending.newCount) nuove, \(pending.updatedCount) aggiornate.") {
+                        try BackupService.applyMerge(pending, existing: words, existingPhrases: phrases, context: context)
                     }
                 }
-                Button("Sostituisci tutto (\(pending.backup.words.count) parole)", role: .destructive) {
+                Button("Sostituisci tutto (\(pending.backup.words.count) parole, \(pending.phraseCount) frasi)", role: .destructive) {
                     run(success: "Vocabolario sostituito con il backup.") {
-                        try BackupService.replaceAll(with: pending.backup, existing: words, context: context)
+                        try BackupService.replaceAll(with: pending.backup, existing: words, existingPhrases: phrases, context: context)
                     }
                 }
                 Button("Annulla", role: .cancel) {}
             } message: { pending in
-                Text("Il backup del \(pending.backup.exportedAt.formatted(date: .abbreviated, time: .shortened)) contiene \(pending.backup.words.count) parole. Unisci tiene la versione più recente di ogni parola; Sostituisci cancella il vocabolario attuale.")
+                Text("Il backup del \(pending.backup.exportedAt.formatted(date: .abbreviated, time: .shortened)) contiene \(pending.backup.words.count) parole e \(pending.phraseCount) frasi. Unisci tiene la versione più recente di ognuna; Sostituisci cancella il vocabolario e le frasi attuali.")
             }
             .alert("Backup", isPresented: Binding(isPresent: $message)) {
                 Button("OK", role: .cancel) {}
@@ -155,7 +156,7 @@ struct SettingsView: View {
         Section {
             Button {
                 do {
-                    exportDocument = BackupDocument(data: try BackupService.exportData(words: words))
+                    exportDocument = BackupDocument(data: try BackupService.exportData(words: words, phrases: phrases))
                     isExporting = true
                 } catch {
                     message = error.localizedDescription
@@ -163,7 +164,7 @@ struct SettingsView: View {
             } label: {
                 Label("Esporta vocabolario", systemImage: "square.and.arrow.up")
             }
-            .disabled(words.isEmpty)
+            .disabled(words.isEmpty && phrases.isEmpty)
 
             Button {
                 isImporting = true

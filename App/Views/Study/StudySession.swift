@@ -22,10 +22,31 @@ enum KindPolicy {
     case adaptive
 }
 
-/// One question of a session: a word in an area, or a number.
+/// One question of a session: a word in an area, a number, or a phrase.
 enum SessionStep: Hashable {
     case word(StudyItem)
     case number(NumberExercise)
+    case phrase(UUID)
+}
+
+/// How phrase questions pick their kind of exercise.
+enum PhrasePolicy {
+    /// From reordering to producing as the phrase is learned.
+    case adaptive
+    /// Any applicable kind at random.
+    case mixed
+    case fixed(PhraseExerciseKind)
+}
+
+/// A phrase question ready to show.
+struct PhraseQuestion: Identifiable {
+    let id = UUID()
+    let kind: PhraseExerciseKind
+    let entry: PhraseEntry
+    /// Shuffled words (reorder only).
+    let tiles: [String]
+    /// Sentence with a blank and the hidden word (cloze only).
+    let cloze: (shown: String, answer: String)?
 }
 
 /// A star (theme + area) gained during a session.
@@ -40,6 +61,7 @@ struct EarnedStar: Hashable {
 final class StudySession: ObservableObject, Identifiable {
     @Published private(set) var exercise: Exercise?
     @Published private(set) var numberExercise: NumberExercise?
+    @Published private(set) var phraseQuestion: PhraseQuestion?
     @Published private(set) var feedback: AnswerFeedback?
     @Published private(set) var isFinished = false
     @Published private(set) var results: [Verdict: Int] = [:]
@@ -50,12 +72,18 @@ final class StudySession: ObservableObject, Identifiable {
     let total: Int
     /// Existing themes, offered when editing a word from the session.
     let themes: [String]
+    /// Existing phrase categories, offered when editing a phrase.
+    let phraseCategories: [String]
 
     private let kindPolicy: KindPolicy
     private let allowSpeaking: Bool
     private let context: ModelContext
     private let wordsByID: [UUID: Word]
     private let pool: [VocabEntry]
+    private let phrasesByID: [UUID: Phrase]
+    private let phrasePolicy: PhrasePolicy
+    /// State before grading the current phrase on its first attempt.
+    private var phraseSnapshot: (srs: SRSState, streak: Int, kindStreak: Int)?
     private let bonusSteps: Set<SessionStep>
     private let starsBefore: Set<EarnedStar>
     private var queue: [SessionStep]
@@ -84,17 +112,26 @@ final class StudySession: ObservableObject, Identifiable {
         steps: [SessionStep],
         bonusFrom: Int? = nil,
         allWords: [Word],
+        allPhrases: [Phrase] = [],
         kindPolicy: KindPolicy,
+        phrasePolicy: PhrasePolicy = .adaptive,
         allowSpeaking: Bool,
         context: ModelContext
     ) {
         let wordsByID = Dictionary(allWords.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let phrasesByID = Dictionary(allPhrases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.wordsByID = wordsByID
+        self.phrasesByID = phrasesByID
+        self.phrasePolicy = phrasePolicy
+        phraseCategories = allPhrases.categories
         pool = allWords.map(\.entry)
         themes = allWords.categories
         let valid = steps.filter { step in
-            if case .word(let item) = step { return wordsByID[item.wordID] != nil }
-            return true
+            switch step {
+            case .word(let item): return wordsByID[item.wordID] != nil
+            case .phrase(let id): return phrasesByID[id] != nil
+            case .number: return true
+            }
         }
         queue = valid
         total = valid.count
@@ -158,10 +195,47 @@ final class StudySession: ObservableObject, Identifiable {
         feedback = AnswerFeedback(verdict: verdict, given: given)
     }
 
+    func submitPhrase(_ verdict: Verdict, given: String) {
+        guard let phraseQuestion, let currentStep, feedback == nil,
+              let phrase = phrasesByID[phraseQuestion.entry.id] else { return }
+        if !graded.contains(currentStep) {
+            phraseSnapshot = (phrase.srs, phrase.streak, phrase.kindStreaks[phraseQuestion.kind] ?? 0)
+            recordPhrase(verdict, phrase: phrase, kind: phraseQuestion.kind)
+            graded.insert(currentStep)
+            results[verdict, default: 0] += 1
+        }
+        if verdict == .wrong {
+            queue.append(currentStep)
+        }
+        feedback = AnswerFeedback(verdict: verdict, given: given)
+    }
+
+    /// Saves edits made from the feedback panel of a phrase.
+    func updatePhrase(_ entry: PhraseEntry) {
+        guard let phrase = phrasesByID[entry.id] else { return }
+        phrase.update(from: entry)
+        try? context.save()
+    }
+
     /// The learner says the answer was right (synonym, recognizer mistake, ...).
     func overrideAsCorrect() {
         guard let feedback, feedback.verdict != .correct else { return }
-        if let numberExercise, let currentStep {
+        if let phraseQuestion, let currentStep, let phrase = phrasesByID[phraseQuestion.entry.id] {
+            if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
+                queue.remove(at: index)
+            }
+            if let phraseSnapshot {
+                phrase.srs = phraseSnapshot.srs
+                phrase.streak = phraseSnapshot.streak
+                var streaks = phrase.kindStreaks
+                streaks[phraseQuestion.kind] = phraseSnapshot.kindStreak
+                phrase.kindStreaks = streaks
+                recordPhrase(.correct, phrase: phrase, kind: phraseQuestion.kind)
+                results[feedback.verdict, default: 0] -= 1
+                results[.correct, default: 0] += 1
+            }
+            self.feedback?.verdict = .correct
+        } else if let numberExercise, let currentStep {
             if feedback.verdict == .wrong, let index = queue.lastIndex(of: currentStep) {
                 queue.remove(at: index)
             }
@@ -227,10 +301,12 @@ final class StudySession: ObservableObject, Identifiable {
     func advance() {
         feedback = nil
         snapshot = nil
+        phraseSnapshot = nil
         numberWasGraded = false
         guard !queue.isEmpty else {
             exercise = nil
             numberExercise = nil
+            phraseQuestion = nil
             currentStep = nil
             isFinished = true
             return
@@ -243,11 +319,21 @@ final class StudySession: ObservableObject, Identifiable {
                 return
             }
             numberExercise = nil
+            phraseQuestion = nil
             exercise = ExerciseBuilder.make(area: item.area, kind: kind(for: item, word: word),
                                             entry: word.entry, pool: pool, using: &rng)
         case .number(let question):
             exercise = nil
+            phraseQuestion = nil
             numberExercise = question
+        case .phrase(let id):
+            guard let phrase = phrasesByID[id] else {
+                advance()
+                return
+            }
+            exercise = nil
+            numberExercise = nil
+            phraseQuestion = makePhraseQuestion(for: phrase)
         }
         currentStep = step
         isInBonus = bonusSteps.contains(step)
@@ -282,6 +368,51 @@ final class StudySession: ObservableObject, Identifiable {
         } else {
             word.timesCorrect += 1
         }
+        try? context.save()
+    }
+
+    private func makePhraseQuestion(for phrase: Phrase) -> PhraseQuestion {
+        let entry = phrase.entry
+        let applicable = PhraseExerciseKind.allCases.filter {
+            $0.isApplicable(to: entry) && (allowSpeaking || $0 != .speak)
+        }
+        let kind: PhraseExerciseKind
+        switch phrasePolicy {
+        case .adaptive:
+            kind = PhraseExercises.kind(level: phrase.streak, entry: entry, allowSpeaking: allowSpeaking, using: &rng)
+        case .mixed:
+            kind = applicable.randomElement(using: &rng) ?? .translate
+        case .fixed(let chosen):
+            kind = chosen.isApplicable(to: entry) ? chosen : .translate
+        }
+        return PhraseQuestion(
+            kind: kind,
+            entry: entry,
+            tiles: kind == .reorder ? PhraseExercises.shuffledTiles(for: entry.german, using: &rng) : [],
+            cloze: kind == .cloze ? PhraseExercises.cloze(for: entry.german) : nil
+        )
+    }
+
+    private func recordPhrase(_ verdict: Verdict, phrase: Phrase, kind: PhraseExerciseKind) {
+        let now = Date()
+        if phrase.srs.isDue(at: now) {
+            // Reordering is recognition, like multiple choice; the rest is production.
+            let grade = ReviewGrade.from(verdict: verdict, kind: kind == .reorder ? .multipleChoice : .typeGerman,
+                                         responseTime: now.timeIntervalSince(shownAt))
+            phrase.srs = SRS.review(phrase.srs, grade: grade, now: now)
+        }
+        var streaks = phrase.kindStreaks
+        switch verdict {
+        case .correct:
+            phrase.streak += 1
+            streaks[kind, default: 0] += 1
+        case .almost:
+            break
+        case .wrong:
+            phrase.streak = 0
+            streaks[kind] = 0
+        }
+        phrase.kindStreaks = streaks
         try? context.save()
     }
 

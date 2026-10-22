@@ -12,6 +12,8 @@ enum SettingsKey {
     static let lessonNewWords = "lessonNewWords"
     static let bonusSize = "bonusSize"
     static let numbersLevel = "numbersLevel"
+    static let importKind = "importKind"
+    static let vocabularyKind = "vocabularyKind"
     static let speakingInMixed = "speakingInMixed"
     static let autoSpeak = "autoSpeak"
     static let lastExport = "lastExportDate"

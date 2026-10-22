@@ -25,6 +25,15 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi.
   - leggi le cifre e pronuncia il numero.
 
   Ogni esercizio ha la percentuale delle risposte giuste sulle ultime 20, i numeri sbagliati tornano più spesso e 3 domande sui numeri entrano in ogni Bonus.
+- **Frasi** (sezione a parte): nella scheda Aggiungi scegli **Parole | Frasi** prima di caricare la foto, così ognuno usa il suo prompt. Per le frasi il modello estrae modi di dire, frasi utili e domande, **risolve gli esercizi a buchi** (es. "Wie heißt die Frage?": dalla risposta ricostruisce la domanda), aggiunge varianti corrette, traduzione inglese, nota per i modi di dire e una categoria (riusando le esistenti). Le frasi sono centralizzate: niente doppioni, revisione prima del salvataggio, elenco e modifica nella scheda Vocabolario (**Parole | Frasi**). Esercizi:
+  - ricomponi la frase con i tasselli;
+  - traduci e scrivi;
+  - domanda dalla risposta;
+  - completa la parola mancante;
+  - dettato (anche lento);
+  - pronuncia.
+
+  Ogni esercizio ha la sua percentuale; "Automatico" va dal ricomporre allo scrivere e dire la frase; 2 frasi già viste entrano in ogni Bonus.
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 
@@ -71,7 +80,7 @@ App/
 
 ## Backup
 
-Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, più lo storico degli esercizi sui numeri, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
+Il vocabolario esiste solo su questo iPhone, quindi conviene fare un backup ogni tanto: **Impostazioni → Esporta vocabolario** (su File, iCloud Drive, AirDrop...). Il file JSON contiene parole, temi, i calendari di ripasso delle tre aree e le serie di risposte giuste (per area e per tipo di esercizio) che muovono le percentuali del percorso, più le frasi e lo storico degli esercizi sui numeri, ma non la API key. I backup della prima versione (schema 1) si importano ancora: le parole finiscono nel tema "Varie".
 
 L'import offre due modalità:
 
