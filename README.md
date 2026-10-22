@@ -65,3 +65,7 @@ L'import offre due modalità:
 
 - **Unisci**: per ogni parola tiene la versione modificata o ripassata più di recente.
 - **Sostituisci tutto**: cancella il vocabolario attuale e lo rimpiazza con il backup.
+
+## Icona
+
+`design/AppIcon.svg` è il sorgente dell'icona: una pila di flashcard nei colori della bandiera tedesca con una "Ä". Il PNG 1024×1024 usato da Xcode è in `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png`; se modifichi l'SVG, riesportalo a quella dimensione, senza trasparenza (il font è Inter Display Black).

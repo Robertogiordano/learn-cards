@@ -1,0 +1,36 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#33397A"/>
+      <stop offset="1" stop-color="#14173A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#05061A" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+
+  <!-- Card stack in the colours of the German flag -->
+  <g transform="translate(512 540)">
+    <g transform="rotate(-17) translate(-40 -10)" filter="url(#shadow)">
+      <rect x="-230" y="-300" width="460" height="600" rx="64" fill="#FFCE00"/>
+    </g>
+    <g transform="rotate(-7) translate(-12 -4)" filter="url(#shadow)">
+      <rect x="-230" y="-300" width="460" height="600" rx="64" fill="#E2231A"/>
+    </g>
+    <g transform="rotate(5) translate(22 0)" filter="url(#shadow)">
+      <rect x="-230" y="-300" width="460" height="600" rx="64" fill="#FFFFFF"/>
+      <text x="0" y="95" text-anchor="middle"
+            font-family="Inter Display" font-weight="900" font-size="290"
+            fill="#1B1E44" letter-spacing="0">Ä</text>
+      <rect x="-120" y="170" width="240" height="30" rx="15" fill="#E7E8F2"/>
+      <rect x="-120" y="170" width="150" height="30" rx="15" fill="#F26B2E"/>
+    </g>
+  </g>
+</svg>
