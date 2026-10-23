@@ -39,10 +39,10 @@ public enum NumberExerciseKind: String, CaseIterable, Codable, Hashable, Sendabl
 
     public var title: String {
         switch self {
-        case .listenChoice: return "Ascolta e scegli"
-        case .listenDigits: return "Ascolta e scrivi le cifre"
-        case .writeWords: return "Scrivi a lettere"
-        case .speak: return "Pronuncia"
+        case .listenChoice: return "Listen and choose"
+        case .listenDigits: return "Listen and type digits"
+        case .writeWords: return "Write in words"
+        case .speak: return "Speak"
         }
     }
 

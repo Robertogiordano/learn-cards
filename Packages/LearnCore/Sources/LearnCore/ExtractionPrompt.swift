@@ -26,8 +26,8 @@ public enum ExtractionPrompt {
         - partOfSpeech: one of noun, verb, adjective, adverb, phrase, other.
         - emoji: exactly ONE emoji giving a concrete visual association to remember the word. For \
         abstract words choose the most evocative image.
-        - category: the theme of the word, written in Italian, 1 to 3 words, first letter \
-        capitalized (for example Cibo, Casa, Lavoro, Viaggi, Famiglia, Corpo, Tempo libero). \
+        - category: the theme of the word, written in English, 1 to 3 words, first letter \
+        capitalized (for example Food, Home, Work, Travel, Family, Body, Free time). \
         \(themes) Reuse one of the existing themes, spelled exactly the same, whenever the word \
         fits it. Create a new theme only when none fits, and keep themes broad enough to group \
         several words.

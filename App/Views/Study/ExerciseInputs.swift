@@ -63,7 +63,7 @@ struct TypingView: View {
         VStack(spacing: 14) {
             switch exercise.area {
             case .translation:
-                answerField(exercise.kind == .typeEnglish ? "In inglese" : "In tedesco", text: $first, field: .first, isLast: true)
+                answerField(exercise.kind == .typeEnglish ? "In English" : "In German", text: $first, field: .first, isLast: true)
             case .article:
                 HStack {
                     answerField("der/die/das", text: $first, field: .first, isLast: false)
@@ -82,16 +82,16 @@ struct TypingView: View {
                     Text("die")
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                    answerField("Plurale", text: $first, field: .first, isLast: true)
+                    answerField("Plural", text: $first, field: .first, isLast: true)
                 }
             }
 
             if !isAnswered {
-                Button("Controlla") { submit() }
+                Button("Check") { submit() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canSubmit)
                 if exercise.kind == .typeGerman && exercise.area != .article {
-                    Text("Puoi scrivere ae, oe, ue, ss al posto di ä, ö, ü, ß.")
+                    Text("You can type ae, oe, ue, ss instead of ä, ö, ü, ß.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -146,9 +146,9 @@ struct SpeakingView: View {
 
     private var hint: String {
         switch exercise.area {
-        case .translation: return "Tocca il microfono e parla"
-        case .article: return "Es. „der Tisch, ein Tisch“"
-        case .plural: return "Es. „die Tische“"
+        case .translation: return "Tap the microphone and speak"
+        case .article: return "E.g. “der Tisch, ein Tisch”"
+        case .plural: return "E.g. “die Tische”"
         }
     }
 
@@ -172,7 +172,7 @@ struct SpeechAnswerView: View {
 
     private var transcriptText: String {
         if let best = recognizer.transcripts.first { return best }
-        return recognizer.isRecording ? "Ti ascolto…" : hint
+        return recognizer.isRecording ? "Listening…" : hint
     }
 
     var body: some View {
@@ -196,9 +196,9 @@ struct SpeechAnswerView: View {
                         .foregroundStyle(recognizer.isRecording ? Color.red : Color.accentColor)
                 }
                 .disabled(isEvaluating)
-                .accessibilityLabel(recognizer.isRecording ? "Ferma" : "Parla")
+                .accessibilityLabel(recognizer.isRecording ? "Stop" : "Speak")
 
-                Text(recognizer.isRecording ? "Tocca di nuovo quando hai finito" : " ")
+                Text(recognizer.isRecording ? "Tap again when you are done" : " ")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -235,7 +235,7 @@ struct EmojiToggleButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(showEmoji ? "Nascondi emoji" : "Mostra emoji")
+        .accessibilityLabel(showEmoji ? "Hide emoji" : "Show emoji")
     }
 }
 

@@ -57,18 +57,18 @@ struct ReviewPhrasesView: View {
                             items.removeAll { ids.contains($0.id) }
                         }
                     } header: {
-                        Text(existingPhrases.categories.contains(category) ? category : "\(category) · nuova categoria")
+                        Text(existingPhrases.categories.contains(category) ? category : "\(category) · new category")
                     }
                 }
             }
-            .navigationTitle(items.count == 1 ? "1 frase trovata" : "\(items.count) frasi trovate")
+            .navigationTitle(items.count == 1 ? "1 phrase found" : "\(items.count) phrases found")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva (\(selectedCount))", action: save)
+                    Button("Save (\(selectedCount))", action: save)
                         .disabled(selectedCount == 0)
                 }
                 ToolbarItem(placement: .bottomBar) {
@@ -77,23 +77,23 @@ struct ReviewPhrasesView: View {
                             Button(category) { setCategoryOfSelected(category) }
                         }
                         Divider()
-                        Button("Nuova categoria…") {
+                        Button("New category…") {
                             newCategory = ""
                             isNamingCategory = true
                         }
                     } label: {
-                        Label("Cambia categoria alle selezionate", systemImage: "tag")
+                        Label("Change category of selected", systemImage: "tag")
                     }
                     .disabled(selectedCount == 0)
                 }
             }
-            .alert("Nuova categoria", isPresented: $isNamingCategory) {
-                TextField("Categoria", text: $newCategory)
-                Button("Annulla", role: .cancel) {}
-                Button("Applica") { setCategoryOfSelected(newCategory.trimmed) }
+            .alert("New category", isPresented: $isNamingCategory) {
+                TextField("Category", text: $newCategory)
+                Button("Cancel", role: .cancel) {}
+                Button("Apply") { setCategoryOfSelected(newCategory.trimmed) }
             }
             .sheet(item: $editing) { item in
-                PhraseEditView(title: "Modifica frase", entry: item.entry, categories: allCategories) { updated in
+                PhraseEditView(title: "Edit phrase", entry: item.entry, categories: allCategories) { updated in
                     if let index = items.firstIndex(where: { $0.id == item.id }) {
                         items[index].entry = updated
                     }
@@ -127,7 +127,7 @@ struct ReviewPhrasesView: View {
                 }
                 .buttonStyle(.borderless)
                 if isDuplicate {
-                    Text("Già salvata")
+                    Text("Already saved")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }

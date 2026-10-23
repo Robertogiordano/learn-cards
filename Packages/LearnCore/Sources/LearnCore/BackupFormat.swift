@@ -153,7 +153,7 @@ public enum BackupCodec {
         public var errorDescription: String? {
             switch self {
             case .unsupportedVersion(let version):
-                return "Questo backup (versione \(version)) è stato creato da una versione più recente dell'app."
+                return "This backup (version \(version)) was made by a newer version of the app."
             }
         }
     }

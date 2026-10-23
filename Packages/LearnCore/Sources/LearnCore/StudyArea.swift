@@ -11,17 +11,17 @@ public enum StudyArea: String, CaseIterable, Codable, Hashable, Sendable {
 
     public var title: String {
         switch self {
-        case .translation: return "Traduzione"
-        case .article: return "Articolo"
-        case .plural: return "Plurale"
+        case .translation: return "Translation"
+        case .article: return "Article"
+        case .plural: return "Plural"
         }
     }
 
     public var explanation: String {
         switch self {
-        case .translation: return "Dall'inglese al tedesco (e viceversa): table → Tisch."
-        case .article: return "Articolo determinativo e indeterminativo: Tisch → der Tisch / ein Tisch."
-        case .plural: return "Il plurale: der Tisch → die Tische."
+        case .translation: return "From English to German (and back): table → Tisch."
+        case .article: return "Definite and indefinite article: Tisch → der Tisch / ein Tisch."
+        case .plural: return "The plural: der Tisch → die Tische."
         }
     }
 

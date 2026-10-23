@@ -105,10 +105,10 @@ enum ReminderScheduler {
                   let fire = calendar.date(byAdding: .minute, value: minutes, to: day),
                   fire > now, !(offset == 0 && skipToday) else { continue }
             let content = UNMutableNotificationContent()
-            content.title = "Ora di tedesco 🇩🇪"
+            content.title = "Time for German 🇩🇪"
             content.body = goal > 0
-                ? "Ti mancano pochi minuti per l'obiettivo di oggi (\(goal) min). La lezione del giorno ti aspetta."
-                : "La lezione del giorno ti aspetta."
+                ? "Just a few minutes to today's goal (\(goal) min). Today's lesson is waiting."
+                : "Today's lesson is waiting."
             content.sound = .default
             let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
             let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)

@@ -27,7 +27,7 @@ struct ThemeDetailView: View {
                 Section {
                     header(progress, emoji: themeWords.first?.emoji ?? "📝")
                 } footer: {
-                    Text("Ogni esercizio ha la sua percentuale e l'area ne fa la media. Una risposta giusta vale metà parola, due di fila la parola intera; la stella arriva all’80%.")
+                    Text("Each exercise has its own percentage and the area averages them. One right answer is worth half a word, two in a row the whole word; the star comes at 80%.")
                 }
 
                 ForEach(StudyArea.allCases, id: \.self) { area in
@@ -39,7 +39,7 @@ struct ThemeDetailView: View {
                 }
             }
 
-            Section("Parole") {
+            Section("Words") {
                 ForEach(themeWords) { word in
                     WordRow(word: word)
                 }
@@ -51,7 +51,7 @@ struct ThemeDetailView: View {
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
         }
-        .alert("Attenzione", isPresented: Binding(isPresent: $alertMessage)) {
+        .alert("Heads up", isPresented: Binding(isPresent: $alertMessage)) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
@@ -66,8 +66,8 @@ struct ThemeDetailView: View {
                 Text(theme)
                     .font(.title2.bold())
                 Text(progress.newCount > 0
-                     ? "\(progress.wordCount) parole · \(progress.newCount) nuove"
-                     : "\(progress.wordCount) parole")
+                     ? "\(progress.wordCount) words · \(progress.newCount) new"
+                     : "\(progress.wordCount) words")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -84,9 +84,9 @@ struct ThemeDetailView: View {
         let new = words.filter { $0.srs(for: area).isNew }.count
         let isExpanded = expandedAreas.contains(area)
         var details: [String] = []
-        if due > 0 { details.append("\(due) da ripassare") }
-        if new > 0 { details.append("\(new) nuove") }
-        if details.isEmpty { details.append(words.count == 1 ? "1 parola" : "\(words.count) parole") }
+        if due > 0 { details.append("\(due) to review") }
+        if new > 0 { details.append("\(new) new") }
+        if details.isEmpty { details.append(words.count == 1 ? "1 word" : "\(words.count) words") }
 
         return VStack(spacing: 14) {
             Button {
@@ -125,13 +125,13 @@ struct ThemeDetailView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint(isExpanded ? "Nasconde gli esercizi" : "Mostra gli esercizi")
+            .accessibilityHint(isExpanded ? "Hides the exercises" : "Shows the exercises")
 
             if isExpanded {
                 Button {
                     start(area, words: words, policy: .adaptive)
                 } label: {
-                    Label("Allena in automatico", systemImage: "wand.and.stars")
+                    Label("Train automatically", systemImage: "wand.and.stars")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
@@ -211,7 +211,7 @@ struct ExerciseTile: View {
                 if let value {
                     ProgressBar(value: value, color: color)
                 } else {
-                    Text("tutti gli esercizi")
+                    Text("all exercises")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -243,7 +243,7 @@ struct ProgressRing: View {
         }
         .animation(.snappy, value: value)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Int((value * 100).rounded())) per cento")
+        .accessibilityLabel("\(Int((value * 100).rounded())) percent")
     }
 }
 

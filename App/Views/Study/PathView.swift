@@ -30,15 +30,15 @@ struct PathView: View {
             Group {
                 if words.isEmpty {
                     ContentUnavailableView(
-                        "Ancora nessuna parola",
+                        "No words yet",
                         systemImage: "camera",
-                        description: Text("Fotografa una pagina di esercizi dalla scheda Aggiungi per iniziare il percorso.")
+                        description: Text("Take a photo of an exercise page from the Add tab to start your path.")
                     )
                 } else {
                     path
                 }
             }
-            .navigationTitle("Studia")
+            .navigationTitle("Study")
             .fullScreenCover(item: $activeSession) { session in
                 SessionView(session: session)
             }
@@ -83,20 +83,20 @@ struct PathView: View {
                 .disabled(lesson.isEmpty && lessonBonus == 0)
 
                 Button(action: startBonus) {
-                    Label("Bonus · ripasso misto (\(bonusOnly))", systemImage: "gift")
+                    Label("Bonus · mixed review (\(bonusOnly))", systemImage: "gift")
                 }
                 .disabled(bonusOnly == 0)
 
                 NavigationLink {
                     FreePracticeView()
                 } label: {
-                    Label("Allenamento libero: scegli area, temi ed esercizio", systemImage: "slider.horizontal.3")
+                    Label("Free practice: choose area, themes and exercise", systemImage: "slider.horizontal.3")
                 }
             } footer: {
-                Text("Il bonus mescola tutto quello che hai già visto, in tutti i temi e gli esercizi: prima le parole da ripassare, poi quelle che sbagli più spesso.")
+                Text("The bonus mixes everything you have already seen, across all themes and exercises: words due for review first, then the ones you miss most.")
             }
 
-            Section("Numeri, frasi e verbi") {
+            Section("Numbers, phrases and verbs") {
                 NavigationLink {
                     NumbersView()
                 } label: {
@@ -114,7 +114,7 @@ struct PathView: View {
                 }
             }
 
-            Section("Temi") {
+            Section("Themes") {
                 ForEach(PathPlanner.themeProgress(pathWords)) { progress in
                     NavigationLink {
                         ThemeDetailView(theme: progress.theme)
@@ -220,10 +220,10 @@ private struct ContinueCard: View {
     let bonusCount: Int
 
     private var subtitle: String {
-        if lessonCount == 0 && bonusCount == 0 { return "Tutto ripassato per oggi 🎉" }
+        if lessonCount == 0 && bonusCount == 0 { return "All reviewed for today 🎉" }
         var parts: [String] = []
-        if let theme, lessonCount > 0 { parts.append("\(theme) · \(lessonCount) domande") }
-        if bonusCount > 0 { parts.append("+ \(bonusCount) di bonus") }
+        if let theme, lessonCount > 0 { parts.append("\(theme) · \(lessonCount) questions") }
+        if bonusCount > 0 { parts.append("+ \(bonusCount) bonus") }
         return parts.joined(separator: " ")
     }
 
@@ -233,7 +233,7 @@ private struct ContinueCard: View {
                 .font(.system(size: 44))
                 .foregroundStyle(Color.accentColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Continua il percorso")
+                Text("Continue your path")
                     .font(.headline)
                 Text(subtitle)
                     .font(.subheadline)
@@ -259,14 +259,14 @@ struct ThemeRow: View {
                     Text(progress.theme)
                         .font(.headline)
                     if progress.newCount > 0 {
-                        Text("+\(progress.newCount) nuove")
+                        Text("+\(progress.newCount) new")
                             .font(.caption.bold())
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Capsule().fill(Color.accentColor.opacity(0.2)))
                     }
                 }
-                Text(progress.wordCount == 1 ? "1 parola" : "\(progress.wordCount) parole")
+                Text(progress.wordCount == 1 ? "1 word" : "\(progress.wordCount) words")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -286,7 +286,7 @@ struct StarsView: View {
                 if progress.mastery[area] != nil {
                     Image(systemName: progress.hasStar(area) ? "star.fill" : "star")
                         .foregroundStyle(progress.hasStar(area) ? area.color : Color.secondary)
-                        .accessibilityLabel("\(area.title): \(progress.hasStar(area) ? "completata" : "da completare")")
+                        .accessibilityLabel("\(area.title): \(progress.hasStar(area) ? "complete" : "to complete")")
                 }
             }
         }

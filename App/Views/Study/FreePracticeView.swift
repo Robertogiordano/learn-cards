@@ -34,19 +34,19 @@ struct FreePracticeView: View {
     private var themesSummary: String {
         let all = words.categories
         let selected = all.filter { !excludedThemes.contains($0) }
-        if selected.count == all.count { return "Tutti" }
-        if selected.isEmpty { return "Nessuno" }
-        return selected.count == 1 ? selected[0] : "\(selected.count) di \(all.count)"
+        if selected.count == all.count { return "All" }
+        if selected.isEmpty { return "None" }
+        return selected.count == 1 ? selected[0] : "\(selected.count) of \(all.count)"
     }
 
     var body: some View {
         form
-            .navigationTitle("Allenamento libero")
+            .navigationTitle("Free practice")
             .navigationBarTitleDisplayMode(.inline)
             .fullScreenCover(item: $activeSession) { session in
                 SessionView(session: session)
             }
-            .alert("Attenzione", isPresented: Binding(isPresent: $alertMessage)) {
+            .alert("Heads up", isPresented: Binding(isPresent: $alertMessage)) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(alertMessage ?? "")
@@ -57,9 +57,9 @@ struct FreePracticeView: View {
         Form {
             Section {
                 HStack {
-                    stat(value: dueCount, label: "da ripassare")
+                    stat(value: dueCount, label: "to review")
                     Divider()
-                    stat(value: studyWords.count, label: "parole")
+                    stat(value: studyWords.count, label: "words")
                 }
                 .padding(.vertical, 8)
             }
@@ -72,21 +72,21 @@ struct FreePracticeView: View {
                 }
                 .pickerStyle(.segmented)
             } header: {
-                Text("Cosa alleni")
+                Text("What you train")
             } footer: {
                 Text(area.explanation)
             }
 
-            Section("Temi") {
+            Section("Themes") {
                 NavigationLink {
                     ThemePickerView(themes: words.categories, excludedRaw: $excludedThemesRaw)
                 } label: {
-                    LabeledContent("Temi", value: themesSummary)
+                    LabeledContent("Themes", value: themesSummary)
                 }
             }
 
-            Section("Esercizio") {
-                Picker("Esercizio", selection: $modeRaw) {
+            Section("Exercise") {
+                Picker("Exercise", selection: $modeRaw) {
                     ForEach(StudyMode.available(in: area)) { mode in
                         Label(mode.title(in: area), systemImage: mode.systemImage).tag(mode.rawValue)
                     }
@@ -99,7 +99,7 @@ struct FreePracticeView: View {
                 Button {
                     start(extra: false)
                 } label: {
-                    Label(dueCount == 0 ? "Niente da ripassare" : "Inizia ripasso (\(min(dueCount, sessionSize)))",
+                    Label(dueCount == 0 ? "Nothing to review" : "Start review (\(min(dueCount, sessionSize)))",
                           systemImage: "play.fill")
                 }
                 .disabled(dueCount == 0)
@@ -107,16 +107,16 @@ struct FreePracticeView: View {
                 Button {
                     start(extra: true)
                 } label: {
-                    Label("Allenamento extra", systemImage: "dumbbell")
+                    Label("Extra practice", systemImage: "dumbbell")
                 }
                 .disabled(studyWords.isEmpty)
             } footer: {
                 if studyWords.isEmpty {
                     Text(area == .translation
-                         ? "Nessuna parola nei temi selezionati."
-                         : "Nessun sostantivo adatto a questo esercizio nei temi selezionati.")
+                         ? "No words in the selected themes."
+                         : "No nouns suited to this exercise in the selected themes.")
                 } else {
-                    Text("L'allenamento extra aggiunge le parole che scadono più presto; il loro calendario di ripasso non cambia.")
+                    Text("Extra practice takes the weakest words in this exercise, in rotation; their review schedule does not change.")
                 }
             }
         }
@@ -175,8 +175,8 @@ struct ThemePickerView: View {
     var body: some View {
         List {
             Section {
-                Button("Seleziona tutti") { excludedRaw = ThemeSelection.encode([]) }
-                Button("Deseleziona tutti") { excludedRaw = ThemeSelection.encode(Set(themes)) }
+                Button("Select all") { excludedRaw = ThemeSelection.encode([]) }
+                Button("Deselect all") { excludedRaw = ThemeSelection.encode(Set(themes)) }
             }
             Section {
                 ForEach(themes, id: \.self) { theme in
@@ -196,7 +196,7 @@ struct ThemePickerView: View {
                 }
             }
         }
-        .navigationTitle("Temi")
+        .navigationTitle("Themes")
         .navigationBarTitleDisplayMode(.inline)
     }
 

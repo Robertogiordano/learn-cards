@@ -59,23 +59,23 @@ struct ReviewExtractedView: View {
                             items.removeAll { ids.contains($0.id) }
                         }
                     } header: {
-                        Text(existingWords.categories.contains(theme) ? theme : "\(theme) · nuovo tema")
+                        Text(existingWords.categories.contains(theme) ? theme : "\(theme) · new theme")
                     }
                 }
                 Section {
                     EmptyView()
                 } footer: {
-                    Text("Tocca la matita per correggere una parola. Le parole già nel vocabolario sono deselezionate: se le selezioni, aggiornano quella esistente senza perdere i progressi.")
+                    Text("Tap the pencil to fix a word. Words already in your vocabulary are deselected: if you select them, they update the existing word without losing progress.")
                 }
             }
-            .navigationTitle(items.count == 1 ? "1 parola trovata" : "\(items.count) parole trovate")
+            .navigationTitle(items.count == 1 ? "1 word found" : "\(items.count) words found")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva (\(selectedCount))", action: save)
+                    Button("Save (\(selectedCount))", action: save)
                         .disabled(selectedCount == 0)
                 }
                 ToolbarItem(placement: .bottomBar) {
@@ -84,25 +84,25 @@ struct ReviewExtractedView: View {
                             Button(theme) { setThemeOfSelected(theme) }
                         }
                         Divider()
-                        Button("Nuovo tema…") {
+                        Button("New theme…") {
                             newTheme = ""
                             isNamingTheme = true
                         }
                     } label: {
-                        Label("Cambia tema alle selezionate", systemImage: "tag")
+                        Label("Change theme of selected", systemImage: "tag")
                     }
                     .disabled(selectedCount == 0)
                 }
             }
-            .alert("Nuovo tema", isPresented: $isNamingTheme) {
-                TextField("Tema", text: $newTheme)
-                Button("Annulla", role: .cancel) {}
-                Button("Applica") { setThemeOfSelected(newTheme.trimmed) }
+            .alert("New theme", isPresented: $isNamingTheme) {
+                TextField("Theme", text: $newTheme)
+                Button("Cancel", role: .cancel) {}
+                Button("Apply") { setThemeOfSelected(newTheme.trimmed) }
             } message: {
-                Text("Verrà assegnato alle \(selectedCount) parole selezionate.")
+                Text("It will be given to the \(selectedCount) selected words.")
             }
             .sheet(item: $editing) { item in
-                WordEditView(title: "Modifica", entry: item.entry, themes: allThemes) { updated in
+                WordEditView(title: "Edit", entry: item.entry, themes: allThemes) { updated in
                     if let index = items.firstIndex(where: { $0.id == item.id }) {
                         items[index].entry = updated
                     }
@@ -133,7 +133,7 @@ struct ReviewExtractedView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 if isDuplicate {
-                    Text("Già nel vocabolario")
+                    Text("Already in your vocabulary")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }

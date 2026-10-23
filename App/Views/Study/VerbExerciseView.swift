@@ -41,7 +41,7 @@ struct VerbExerciseView: View {
                                        given: answers.joined(separator: ", "))
                 }
             case .speak:
-                SpeechAnswerView(hint: "Di' «\(question.person.pronoun) …»", isAnswered: isAnswered) { transcripts in
+                SpeechAnswerView(hint: "Say “\(question.person.pronoun) …”", isAnswered: isAnswered) { transcripts in
                     session.submitVerb(VerbExercises.checkSpoken(transcripts, verb: verb, person: question.person),
                                        given: transcripts.first ?? "—")
                 }
@@ -52,15 +52,15 @@ struct VerbExerciseView: View {
                     session.submitVerb(chosen == verb.infinitive ? .correct : .wrong, given: chosen)
                 }
             case .translateGerman:
-                SingleAnswerField(placeholder: "Infinito in tedesco", isAnswered: isAnswered) { text in
+                SingleAnswerField(placeholder: "Infinitive in German", isAnswered: isAnswered) { text in
                     session.submitVerb(VerbExercises.checkTranslation(text, verb: verb), given: text)
                 }
             case .translateEnglish:
-                SingleAnswerField(placeholder: "In inglese", isAnswered: isAnswered) { text in
+                SingleAnswerField(placeholder: "In English", isAnswered: isAnswered) { text in
                     session.submitVerb(VerbExercises.checkEnglish(text, verb: verb), given: text)
                 }
             case .translateSpeak:
-                SpeechAnswerView(hint: "Di' il verbo all'infinito", isAnswered: isAnswered) { transcripts in
+                SpeechAnswerView(hint: "Say the infinitive", isAnswered: isAnswered) { transcripts in
                     session.submitVerb(VerbExercises.checkSpokenInfinitive(transcripts, verb: verb),
                                        given: transcripts.first ?? "—")
                 }
@@ -89,15 +89,15 @@ private struct VerbPromptCard: View {
 
     private var instruction: String {
         switch question.kind {
-        case .chooseForm: return "Scegli la forma giusta"
-        case .typeForm: return "Coniuga al presente"
-        case .fullTable: return "Coniuga per tutte le persone"
-        case .whichPerson: return "A quale persona corrisponde?"
-        case .speak: return "Di' pronome e verbo"
-        case .translateChoice: return "Scegli il verbo tedesco"
-        case .translateGerman: return "Scrivi il verbo in tedesco"
-        case .translateEnglish: return "Scrivi in inglese"
-        case .translateSpeak: return "Di' il verbo in tedesco"
+        case .chooseForm: return "Choose the right form"
+        case .typeForm: return "Conjugate in the present"
+        case .fullTable: return "Conjugate for every person"
+        case .whichPerson: return "Which person is it?"
+        case .speak: return "Say pronoun and verb"
+        case .translateChoice: return "Choose the German verb"
+        case .translateGerman: return "Type the verb in German"
+        case .translateEnglish: return "Type it in English"
+        case .translateSpeak: return "Say the verb in German"
         }
     }
 
@@ -123,7 +123,7 @@ private struct VerbPromptCard: View {
                 Button {
                     Speaker.shared.speak(verb.infinitive)
                 } label: {
-                    Label("Ascolta", systemImage: "speaker.wave.2")
+                    Label("Listen", systemImage: "speaker.wave.2")
                 }
                 .buttonStyle(.bordered)
             case .whichPerson:
@@ -216,7 +216,7 @@ private struct SingleAnswerField: View {
                 .submitLabel(.done)
                 .onSubmit(submit)
             if !isAnswered {
-                Button("Controlla", action: submit)
+                Button("Check", action: submit)
                     .buttonStyle(.borderedProminent)
                     .disabled(text.trimmed.isEmpty)
             }
@@ -270,7 +270,7 @@ private struct FormTypingView: View {
                 }
             }
             if !isAnswered {
-                Button("Controlla", action: submit)
+                Button("Check", action: submit)
                     .buttonStyle(.borderedProminent)
                     .disabled(!canSubmit)
                     .padding(.top, 4)
@@ -310,9 +310,9 @@ private struct VerbFeedbackPanel: View {
 
     private var title: String {
         switch feedback.verdict {
-        case .correct: return feedback.overridden ? "Ok, contata giusta" : "Giusto!"
-        case .almost: return "Quasi: controlla l'ortografia"
-        case .wrong: return "Sbagliato"
+        case .correct: return feedback.overridden ? "OK, counted as right" : "Right!"
+        case .almost: return "Almost: check the spelling"
+        case .wrong: return "Wrong"
         }
     }
 
@@ -343,7 +343,7 @@ private struct VerbFeedbackPanel: View {
                 .foregroundStyle(color)
 
             if feedback.verdict != .correct || feedback.overridden {
-                Text("Hai risposto: \(feedback.given)")
+                Text("You answered: \(feedback.given)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -390,18 +390,18 @@ private struct VerbFeedbackPanel: View {
                     Button {
                         isEditing = true
                     } label: {
-                        Label("Modifica verbo…", systemImage: "pencil")
+                        Label("Edit verb…", systemImage: "pencil")
                     }
                 } label: {
                     Image(systemName: "flag")
                 }
                 .buttonStyle(.bordered)
-                .accessibilityLabel("Segnala errore")
+                .accessibilityLabel("Report a mistake")
                 if feedback.verdict != .correct && !isChoice {
-                    Button("Avevo ragione", action: onOverride)
+                    Button("I was right", action: onOverride)
                         .buttonStyle(.bordered)
                 }
-                Button("Continua", action: onContinue)
+                Button("Continue", action: onContinue)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -415,7 +415,7 @@ private struct VerbFeedbackPanel: View {
             }
         }
         .sheet(isPresented: $isEditing) {
-            VerbEditView(title: "Modifica verbo", entry: verb, onSave: onEdit)
+            VerbEditView(title: "Edit verb", entry: verb, onSave: onEdit)
         }
     }
 }

@@ -38,9 +38,9 @@ enum OpenRouterModels {
     static let defaultModel = "google/gemini-2.5-flash"
 
     static let presets = [
-        ModelOption(id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", note: "Consigliato · ~0,5 cent a foto"),
-        ModelOption(id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", note: "Più economico · meno preciso su articoli e plurali"),
-        ModelOption(id: "openai/gpt-4.1-mini", name: "GPT-4.1 mini", note: "Alternativa · costo simile a Flash"),
+        ModelOption(id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", note: "Recommended · ~0.5 cents per photo"),
+        ModelOption(id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", note: "Cheaper · less accurate on articles and plurals"),
+        ModelOption(id: "openai/gpt-4.1-mini", name: "GPT-4.1 mini", note: "Alternative · similar cost to Flash"),
     ]
 }
 
@@ -58,22 +58,22 @@ enum StudyMode: String, CaseIterable, Identifiable {
 
     func title(in area: StudyArea) -> String {
         switch self {
-        case .mixed: return "Misto"
-        case .multipleChoice: return "Scelta multipla"
-        case .typeGerman: return area == .translation ? "Scrivi in tedesco (EN → DE)" : "Scrivi in tedesco"
-        case .typeEnglish: return "Scrivi in inglese (DE → EN)"
-        case .speakGerman: return "Pronuncia in tedesco"
+        case .mixed: return "Mixed"
+        case .multipleChoice: return "Multiple choice"
+        case .typeGerman: return area == .translation ? "Type in German (EN → DE)" : "Type in German"
+        case .typeEnglish: return "Type in English (DE → EN)"
+        case .speakGerman: return "Say it in German"
         }
     }
 
     /// Compact title for tiles.
     func shortTitle(in area: StudyArea) -> String {
         switch self {
-        case .mixed: return "Misto"
-        case .multipleChoice: return "Scelta multipla"
-        case .typeGerman: return area == .translation ? "Scrivi EN → DE" : "Scrivi"
-        case .typeEnglish: return "Scrivi DE → EN"
-        case .speakGerman: return "Pronuncia"
+        case .mixed: return "Mixed"
+        case .multipleChoice: return "Multiple choice"
+        case .typeGerman: return area == .translation ? "Type EN → DE" : "Type"
+        case .typeEnglish: return "Type DE → EN"
+        case .speakGerman: return "Speak"
         }
     }
 
@@ -91,16 +91,16 @@ enum StudyMode: String, CaseIterable, Identifiable {
 extension Exercise {
     var instruction: String {
         switch (area, kind) {
-        case (.translation, .multipleChoice): return "Scegli la traduzione tedesca"
-        case (.translation, .typeEnglish): return "Scrivi in inglese"
-        case (.translation, .speakGerman): return "Di' in tedesco"
-        case (.translation, _): return "Scrivi in tedesco"
-        case (.article, .multipleChoice): return "Scegli gli articoli giusti"
-        case (.article, .speakGerman): return "Di' con l'articolo determinativo e indeterminativo"
-        case (.article, _): return "Scrivi l'articolo determinativo e indeterminativo"
-        case (.plural, .multipleChoice): return "Scegli il plurale"
-        case (.plural, .speakGerman): return "Di' il plurale"
-        case (.plural, _): return "Scrivi il plurale"
+        case (.translation, .multipleChoice): return "Choose the German translation"
+        case (.translation, .typeEnglish): return "Type in English"
+        case (.translation, .speakGerman): return "Say it in German"
+        case (.translation, _): return "Type in German"
+        case (.article, .multipleChoice): return "Choose the right articles"
+        case (.article, .speakGerman): return "Say it with the definite and indefinite article"
+        case (.article, _): return "Type it with the definite and indefinite article"
+        case (.plural, .multipleChoice): return "Choose the plural"
+        case (.plural, .speakGerman): return "Say the plural"
+        case (.plural, _): return "Type the plural"
         }
     }
 }

@@ -31,10 +31,10 @@ struct WordEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Tedesco") {
-                    TextField("Parola, senza articolo", text: $draft.german)
+                Section("German") {
+                    TextField("Word, without article", text: $draft.german)
                         .autocorrectionDisabled()
-                    Picker("Articolo", selection: $draft.article) {
+                    Picker("Article", selection: $draft.article) {
                         Text("—").tag(Article?.none)
                         ForEach(Article.allCases, id: \.self) { article in
                             Text(article.rawValue).tag(Article?.some(article))
@@ -42,7 +42,7 @@ struct WordEditView: View {
                     }
                     .pickerStyle(.segmented)
                     if draft.article != nil {
-                        TextField("Plurale, senza articolo", text: $pluralText)
+                        TextField("Plural, without article", text: $pluralText)
                             .autocorrectionDisabled()
                     }
                 }
@@ -51,13 +51,13 @@ struct WordEditView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } header: {
-                    Text("Inglese")
+                    Text("English")
                 } footer: {
-                    Text("Separa più traduzioni con /")
+                    Text("Separate several translations with /")
                 }
-                Section("Tema") {
+                Section("Theme") {
                     HStack {
-                        TextField("Tema", text: $draft.category)
+                        TextField("Theme", text: $draft.category)
                         if !themes.isEmpty {
                             Menu {
                                 ForEach(themes, id: \.self) { theme in
@@ -69,8 +69,8 @@ struct WordEditView: View {
                         }
                     }
                 }
-                Section("Altro") {
-                    Picker("Tipo", selection: $draft.partOfSpeech) {
+                Section("Other") {
+                    Picker("Type", selection: $draft.partOfSpeech) {
                         ForEach(PartOfSpeech.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     TextField("Emoji", text: $draft.emoji)
@@ -80,10 +80,10 @@ struct WordEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva", action: save)
+                    Button("Save", action: save)
                         .disabled(!isValid)
                 }
             }

@@ -16,7 +16,7 @@ final class SpeechRecognizer: ObservableObject {
     private var isFinished = false
 
     static let permissionDeniedMessage =
-        "Per gli esercizi di pronuncia consenti microfono e riconoscimento vocale in Impostazioni > LearnCards."
+        "For speaking exercises, allow microphone and speech recognition in Settings > LearnCards."
 
     static func requestPermissions() async -> Bool {
         let status = await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
@@ -33,7 +33,7 @@ final class SpeechRecognizer: ObservableObject {
         isFinished = false
 
         guard let recognizer, recognizer.isAvailable else {
-            errorMessage = "Riconoscimento vocale tedesco non disponibile."
+            errorMessage = "German speech recognition is not available."
             return
         }
         do {
@@ -67,7 +67,7 @@ final class SpeechRecognizer: ObservableObject {
             }
             isRecording = true
         } catch {
-            errorMessage = "Impossibile usare il microfono: \(error.localizedDescription)"
+            errorMessage = "Could not use the microphone: \(error.localizedDescription)"
             cancel()
         }
     }

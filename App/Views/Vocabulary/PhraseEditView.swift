@@ -28,36 +28,36 @@ struct PhraseEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Tedesco") {
-                    TextField("Frase", text: $draft.german, axis: .vertical)
+                Section("German") {
+                    TextField("Phrase", text: $draft.german, axis: .vertical)
                         .autocorrectionDisabled()
                 }
                 Section {
-                    TextField("Una per riga", text: $variantsText, axis: .vertical)
+                    TextField("One per line", text: $variantsText, axis: .vertical)
                         .lineLimit(1...4)
                         .autocorrectionDisabled()
                 } header: {
-                    Text("Altre forme corrette")
+                    Text("Other correct forms")
                 } footer: {
-                    Text("Anche queste contano come risposta giusta, es. la forma con «Sie».")
+                    Text("These count as right answers too, e.g. the form with “Sie”.")
                 }
-                Section("Inglese") {
-                    TextField("Traduzione", text: $draft.english, axis: .vertical)
+                Section("English") {
+                    TextField("Translation", text: $draft.english, axis: .vertical)
                 }
                 Section {
-                    TextField("Risposta in tedesco", text: $responseText, axis: .vertical)
+                    TextField("Answer in German", text: $responseText, axis: .vertical)
                         .autocorrectionDisabled()
                 } header: {
-                    Text("Risposta")
+                    Text("Answer")
                 } footer: {
-                    Text("Per le domande: abilita l'esercizio «Domanda dalla risposta».")
+                    Text("For questions: enables the “Question from answer” exercise.")
                 }
-                Section("Nota") {
-                    TextField("Significato letterale o spiegazione", text: $noteText, axis: .vertical)
+                Section("Note") {
+                    TextField("Literal meaning or explanation", text: $noteText, axis: .vertical)
                 }
-                Section("Categoria") {
+                Section("Category") {
                     HStack {
-                        TextField("Categoria", text: $draft.category)
+                        TextField("Category", text: $draft.category)
                         if !categories.isEmpty {
                             Menu {
                                 ForEach(categories, id: \.self) { category in
@@ -69,8 +69,8 @@ struct PhraseEditView: View {
                         }
                     }
                 }
-                Section("Altro") {
-                    Picker("Tipo", selection: $draft.kind) {
+                Section("Other") {
+                    Picker("Type", selection: $draft.kind) {
                         ForEach(PhraseKind.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     TextField("Emoji", text: $draft.emoji)
@@ -80,10 +80,10 @@ struct PhraseEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva", action: save)
+                    Button("Save", action: save)
                         .disabled(!isValid)
                 }
             }

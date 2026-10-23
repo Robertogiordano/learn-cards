@@ -22,19 +22,21 @@ public enum PartOfSpeech: String, Codable, CaseIterable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .noun: return "Sostantivo"
-        case .verb: return "Verbo"
-        case .adjective: return "Aggettivo"
-        case .adverb: return "Avverbio"
-        case .phrase: return "Espressione"
-        case .other: return "Altro"
+        case .noun: return "Noun"
+        case .verb: return "Verb"
+        case .adjective: return "Adjective"
+        case .adverb: return "Adverb"
+        case .phrase: return "Expression"
+        case .other: return "Other"
         }
     }
 }
 
 /// A single vocabulary item, independent of how it is stored.
 public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
-    public static let defaultCategory = "Varie"
+    public static let defaultCategory = "Misc"
+    /// The default theme before the app switched to English, renamed on first launch.
+    public static let legacyDefaultCategory = "Varie"
 
     public var id: UUID
     /// Base form without article: singular noun, infinitive verb, ...

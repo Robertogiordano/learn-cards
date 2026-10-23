@@ -25,15 +25,15 @@ struct TodayCard: View {
                 .frame(width: 58, height: 58)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(goalMinutes > 0 ? "Oggi \(minutesToday) di \(goalMinutes) min" : "Oggi \(minutesToday) min")
+                    Text(goalMinutes > 0 ? "Today \(minutesToday) of \(goalMinutes) min" : "Today \(minutesToday) min")
                         .font(.headline)
                     if goalMinutes > 0 {
                         let streak = activity.stats.streak(goalMinutes: goalMinutes, today: .now)
-                        Label(streak == 1 ? "1 giorno di fila" : "\(streak) giorni di fila", systemImage: "flame.fill")
+                        Label(streak == 1 ? "1 day in a row" : "\(streak) days in a row", systemImage: "flame.fill")
                             .font(.subheadline)
                             .foregroundStyle(streak > 0 ? Color.orange : Color.secondary)
                     } else {
-                        Text("Imposta un obiettivo in Impostazioni")
+                        Text("Set a goal in Settings")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -46,7 +46,7 @@ struct TodayCard: View {
                         .font(.title3)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Progressi")
+                .accessibilityLabel("Progress")
             }
 
             if let lesson = lessons.today, let message = lesson.message {
@@ -77,7 +77,7 @@ struct TodayCard: View {
             .buttonStyle(.plain)
 
             Button(action: onAskCoach) {
-                Label("Chiedi al coach una lezione su misura", systemImage: "sparkles")
+                Label("Ask the coach for a tailored lesson", systemImage: "sparkles")
                     .font(.subheadline.weight(.medium))
                     .frame(maxWidth: .infinity)
             }
@@ -88,15 +88,15 @@ struct TodayCard: View {
     }
 
     private var lessonTitle: String {
-        guard let lesson = lessons.today else { return "Lezione del giorno" }
-        if lesson.isComplete { return "Lezione completata" }
-        return lesson.done.isEmpty ? "Inizia la lezione del giorno" : "Continua la lezione"
+        guard let lesson = lessons.today else { return "Today's lesson" }
+        if lesson.isComplete { return "Lesson complete" }
+        return lesson.done.isEmpty ? "Start today's lesson" : "Continue the lesson"
     }
 
     private var lessonSubtitle: String {
-        guard let lesson = lessons.today else { return "Preparata sui tuoi errori e sui temi da rinforzare" }
-        if lesson.isComplete { return "Puoi ripeterla o chiedere al coach un'altra lezione" }
-        var parts = ["\(lesson.remaining.count) domande · ~\(lesson.minutes) min"]
+        guard let lesson = lessons.today else { return "Built from your mistakes and the themes to strengthen" }
+        if lesson.isComplete { return "Do it again or ask the coach for another lesson" }
+        var parts = ["\(lesson.remaining.count) questions · ~\(lesson.minutes) min"]
         if !lesson.focus.isEmpty { parts.append("Focus: " + lesson.focus.prefix(3).joined(separator: ", ")) }
         return parts.joined(separator: " · ")
     }
@@ -116,26 +116,26 @@ struct CoachSheet: View {
     @State private var errorMessage: String?
 
     private let suggestions = [
-        "Concentrati sui miei errori",
-        "Ripasso leggero, poco tempo",
-        "Solo verbi con cambio vocalico",
-        "Articoli der/die/das",
-        "Frasi e domande",
-        "Numeri all'ascolto",
+        "Focus on my mistakes",
+        "Light review, little time",
+        "Only stem-changing verbs",
+        "Articles der/die/das",
+        "Phrases and questions",
+        "Numbers by ear",
     ]
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Es. domani ho una verifica sui verbi separabili", text: $request, axis: .vertical)
+                    TextField("E.g. I have a test on separable verbs tomorrow", text: $request, axis: .vertical)
                         .lineLimit(2...5)
                 } header: {
-                    Text("Cosa vuoi fare oggi?")
+                    Text("What do you want to do today?")
                 } footer: {
-                    Text("Il coach usa solo il tuo materiale (parole, frasi, verbi, numeri) e i tuoi errori recenti. Se lasci vuoto, decide lui.")
+                    Text("The coach only uses your own material (words, phrases, verbs, numbers) and your recent mistakes. Leave it empty and the coach decides.")
                 }
-                Section("Idee") {
+                Section("Ideas") {
                     FlowLayout(spacing: 8) {
                         ForEach(suggestions, id: \.self) { suggestion in
                             Button(suggestion) { request = suggestion }
@@ -156,13 +156,13 @@ struct CoachSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isWorking {
                         ProgressView()
                     } else {
-                        Button("Prepara", action: prepare)
+                        Button("Prepare", action: prepare)
                     }
                 }
             }
@@ -185,7 +185,7 @@ struct CoachSheet: View {
                 let plan = try await OpenRouterClient(apiKey: key, model: modelID).coachPlan(summary: summary)
                 let lesson = DailyLessonBuilder.fromCoach(plan, words: words, phrases: phrases, verbs: verbs)
                 guard !lesson.items.isEmpty else {
-                    errorMessage = "Il coach non ha trovato esercizi adatti nel tuo materiale. Prova con un'altra richiesta."
+                    errorMessage = "The coach found no suitable exercises in your material. Try another request."
                     return
                 }
                 onLessonReady(lesson)
@@ -209,7 +209,7 @@ struct ProgressScreen: View {
     private var frequentMistakes: [(label: String, count: Int)] {
         let since = Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now
         let grouped = Dictionary(grouping: activity.stats.errors(since: since)) { error in
-            "\(error.theme ?? "Numeri") · \(Self.exerciseLabel(error.exercise))"
+            "\(error.theme ?? "Numbers") · \(Self.exerciseLabel(error.exercise))"
         }
         let counted = grouped.map { (label: $0.key, count: $0.value.count) }.sorted { $0.count > $1.count }
         return Array(counted.prefix(6))
@@ -218,22 +218,22 @@ struct ProgressScreen: View {
     var body: some View {
         List {
             Section {
-                Picker("Periodo", selection: $range) {
-                    Text("7 giorni").tag(7)
-                    Text("30 giorni").tag(30)
+                Picker("Period", selection: $range) {
+                    Text("7 days").tag(7)
+                    Text("30 days").tag(30)
                 }
                 .pickerStyle(.segmented)
 
                 Chart {
                     ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                         BarMark(
-                            x: .value("Giorno", day.date, unit: .day),
-                            y: .value("Minuti", Double(day.seconds) / 60)
+                            x: .value("Day", day.date, unit: .day),
+                            y: .value("Minutes", Double(day.seconds) / 60)
                         )
                         .foregroundStyle(goalMinutes > 0 && day.seconds >= goalMinutes * 60 ? Color.orange : Color.orange.opacity(0.4))
                     }
                     if goalMinutes > 0 {
-                        RuleMark(y: .value("Obiettivo", goalMinutes))
+                        RuleMark(y: .value("Goal", goalMinutes))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
                             .foregroundStyle(.secondary)
                     }
@@ -247,19 +247,19 @@ struct ProgressScreen: View {
                 .padding(.vertical, 6)
 
                 let total = days.map(\.seconds).reduce(0, +) / 60
-                LabeledContent("Totale", value: "\(total) min")
+                LabeledContent("Total", value: "\(total) min")
                 if goalMinutes > 0 {
-                    LabeledContent("Giorni con obiettivo",
-                                   value: "\(days.filter { $0.seconds >= goalMinutes * 60 }.count) su \(range)")
-                    LabeledContent("Serie attuale", value: "\(activity.stats.streak(goalMinutes: goalMinutes, today: .now)) giorni")
+                    LabeledContent("Days with goal met",
+                                   value: "\(days.filter { $0.seconds >= goalMinutes * 60 }.count) of \(range)")
+                    LabeledContent("Current streak", value: "\(activity.stats.streak(goalMinutes: goalMinutes, today: .now)) days")
                 }
             } footer: {
-                Text("Conta il tempo attivo negli esercizi; le pause lunghe non contano. La serie perdona un giorno saltato a settimana.")
+                Text("Counts active time in exercises; long pauses do not count. The streak forgives one missed day a week.")
             }
 
-            Section("Dove sbagli di più (30 giorni)") {
+            Section("Where you slip most (30 days)") {
                 if frequentMistakes.isEmpty {
-                    Text("Nessun errore registrato. Ottimo!")
+                    Text("No mistakes recorded. Great!")
                         .foregroundStyle(.secondary)
                 }
                 ForEach(Array(frequentMistakes.enumerated()), id: \.offset) { _, mistake in
@@ -267,19 +267,19 @@ struct ProgressScreen: View {
                 }
             }
 
-            Section("Ultimi errori") {
+            Section("Recent mistakes") {
                 ForEach(Array(activity.stats.errors.suffix(10).reversed().enumerated()), id: \.offset) { _, error in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(error.prompt)
                             .font(.subheadline.weight(.medium))
-                        Text("Hai risposto «\(error.given)» · giusto «\(error.expected)»")
+                        Text("You answered “\(error.given)” · right: “\(error.expected)”")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
         }
-        .navigationTitle("Progressi")
+        .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -288,9 +288,9 @@ struct ProgressScreen: View {
         let parts = exercise.split(separator: ".").map(String.init)
         guard parts.count == 2 else { return exercise }
         switch parts[0] {
-        case "number": return "Numeri · " + (NumberExerciseKind(rawValue: parts[1])?.title ?? parts[1])
-        case "phrase": return "Frasi · " + (PhraseExerciseKind(rawValue: parts[1])?.title ?? parts[1])
-        case "verb": return "Verbi · " + (VerbExerciseKind(rawValue: parts[1])?.title ?? parts[1])
+        case "number": return "Numbers · " + (NumberExerciseKind(rawValue: parts[1])?.title ?? parts[1])
+        case "phrase": return "Phrases · " + (PhraseExerciseKind(rawValue: parts[1])?.title ?? parts[1])
+        case "verb": return "Verbs · " + (VerbExerciseKind(rawValue: parts[1])?.title ?? parts[1])
         default:
             let area = StudyArea(rawValue: parts[0])
             let mode = StudyMode(rawValue: parts[1])

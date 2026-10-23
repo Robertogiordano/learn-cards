@@ -9,8 +9,8 @@ public enum ExtractionParser {
 
         public var errorDescription: String? {
             switch self {
-            case .noJSON: return "La risposta del modello non contiene un elenco di parole."
-            case .invalidJSON: return "La risposta del modello non è leggibile."
+            case .noJSON: return "The model's answer contains no list."
+            case .invalidJSON: return "The model's answer could not be read."
             }
         }
     }

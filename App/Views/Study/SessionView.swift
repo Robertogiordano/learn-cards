@@ -47,7 +47,7 @@ struct SessionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Chiudi") { dismiss() }
+                    Button("Close") { dismiss() }
                 }
                 ToolbarItem(placement: .principal) {
                     if !session.isFinished {
@@ -113,7 +113,7 @@ struct BonusBanner: View {
 
     var body: some View {
         if session.isBonusStart {
-            Label("Bonus: ripasso di tutto quello che hai visto", systemImage: "gift.fill")
+            Label("Bonus: a review of everything you have seen", systemImage: "gift.fill")
                 .font(.subheadline.bold())
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
@@ -155,7 +155,7 @@ struct PromptCard: View {
                 Button {
                     Speaker.shared.speak(exercise.prompt)
                 } label: {
-                    Label("Ascolta", systemImage: "speaker.wave.2")
+                    Label("Listen", systemImage: "speaker.wave.2")
                 }
                 .buttonStyle(.bordered)
             }
@@ -194,9 +194,9 @@ struct FeedbackPanel: View {
 
     private var title: String {
         switch feedback.verdict {
-        case .correct: return feedback.overridden ? "Ok, contata giusta" : "Giusto!"
-        case .almost: return "Quasi: controlla l'ortografia"
-        case .wrong: return "Sbagliato"
+        case .correct: return feedback.overridden ? "OK, counted as right" : "Right!"
+        case .almost: return "Almost: check the spelling"
+        case .wrong: return "Wrong"
         }
     }
 
@@ -236,7 +236,7 @@ struct FeedbackPanel: View {
                 .foregroundStyle(color)
 
             if feedback.verdict != .correct || feedback.overridden {
-                Text("Hai risposto: \(feedback.given)")
+                Text("You answered: \(feedback.given)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -256,7 +256,7 @@ struct FeedbackPanel: View {
                 .foregroundStyle(.secondary)
 
             if let article = feedback.correctedArticle {
-                Label("Genere corretto: \(article.rawValue) (\(article.genderLabel))", systemImage: "checkmark.seal")
+                Label("Gender corrected: \(article.rawValue) (\(article.genderLabel))", systemImage: "checkmark.seal")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -266,10 +266,10 @@ struct FeedbackPanel: View {
                     reportMenu
                 }
                 if feedback.verdict != .correct && exercise.kind != .multipleChoice {
-                    Button("Avevo ragione", action: onOverride)
+                    Button("I was right", action: onOverride)
                         .buttonStyle(.bordered)
                 }
-                Button("Continua", action: onContinue)
+                Button("Continue", action: onContinue)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -288,14 +288,14 @@ struct FeedbackPanel: View {
             }
         }
         .sheet(isPresented: $isEditingWord) {
-            WordEditView(title: "Modifica parola", entry: exercise.entry, themes: themes, onSave: onEditWord)
+            WordEditView(title: "Edit word", entry: exercise.entry, themes: themes, onSave: onEditWord)
         }
     }
 
     /// Lets the learner fix a gender the extraction got wrong, or edit the word.
     private var reportMenu: some View {
         Menu {
-            Section("Il genere giusto è…") {
+            Section("The right gender is…") {
                 ForEach(Article.allCases.filter { $0 != exercise.entry.article }, id: \.self) { article in
                     Button("\(article.rawValue) · \(article.genderLabel)") { onCorrectArticle(article) }
                 }
@@ -303,10 +303,10 @@ struct FeedbackPanel: View {
             Button {
                 isEditingWord = true
             } label: {
-                Label("Modifica parola…", systemImage: "pencil")
+                Label("Edit word…", systemImage: "pencil")
             }
         } label: {
-            Label("Segnala errore", systemImage: "flag")
+            Label("Report a mistake", systemImage: "flag")
         }
         .buttonStyle(.bordered)
     }
@@ -320,19 +320,19 @@ struct SessionSummaryView: View {
         VStack(spacing: 24) {
             Text("🎉")
                 .font(.system(size: 80))
-            Text("Sessione completata")
+            Text("Session complete")
                 .font(.title.bold())
             VStack(alignment: .leading, spacing: 12) {
-                summaryRow("Giuste", count: session.results[.correct, default: 0], color: .green)
-                summaryRow("Quasi", count: session.results[.almost, default: 0], color: .orange)
-                summaryRow("Sbagliate", count: session.results[.wrong, default: 0], color: .red)
+                summaryRow("Right", count: session.results[.correct, default: 0], color: .green)
+                summaryRow("Almost", count: session.results[.almost, default: 0], color: .orange)
+                summaryRow("Wrong", count: session.results[.wrong, default: 0], color: .red)
             }
             .padding()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
             let stars = session.earnedStars
             if !stars.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Nuove stelle")
+                    Text("New stars")
                         .font(.headline)
                     ForEach(stars, id: \.self) { star in
                         Label("\(star.theme) · \(star.area.title)", systemImage: "star.fill")
@@ -345,7 +345,7 @@ struct SessionSummaryView: View {
             if session.isLesson {
                 LessonFeedback()
             }
-            Button("Fine", action: onDone)
+            Button("Done", action: onDone)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         }
@@ -368,14 +368,14 @@ private struct LessonFeedback: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Text(answered ? "Grazie! Ne terrò conto domani." : "Com'è andata la lezione?")
+            Text(answered ? "Thanks! I will take it into account tomorrow." : "How was the lesson?")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if !answered {
                 HStack {
-                    button("Troppo facile", change: 1)
-                    button("Giusta", change: 0)
-                    button("Troppo difficile", change: -1)
+                    button("Too easy", change: 1)
+                    button("Just right", change: 0)
+                    button("Too hard", change: -1)
                 }
             }
         }

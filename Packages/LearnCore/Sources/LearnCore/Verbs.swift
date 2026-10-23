@@ -42,12 +42,12 @@ public enum VerbGroup: String, CaseIterable, Codable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .regular: return "Regolari"
-        case .stemChanging: return "Cambio vocalico"
-        case .irregular: return "Irregolari"
-        case .modal: return "Modali"
-        case .separable: return "Separabili"
-        case .reflexive: return "Riflessivi"
+        case .regular: return "Regular"
+        case .stemChanging: return "Stem-changing"
+        case .irregular: return "Irregular"
+        case .modal: return "Modal"
+        case .separable: return "Separable"
+        case .reflexive: return "Reflexive"
         }
     }
 }
@@ -115,15 +115,15 @@ public enum VerbExerciseKind: String, CaseIterable, Codable, Hashable, Sendable 
 
     public var title: String {
         switch self {
-        case .chooseForm: return "Scegli la forma"
-        case .typeForm: return "Scrivi la forma"
-        case .fullTable: return "Tabella completa"
-        case .whichPerson: return "Che persona è?"
-        case .speak: return "Pronuncia"
-        case .translateChoice: return "Scegli il verbo"
-        case .translateGerman: return "Scrivi EN → DE"
-        case .translateEnglish: return "Scrivi DE → EN"
-        case .translateSpeak: return "Pronuncia il verbo"
+        case .chooseForm: return "Choose the form"
+        case .typeForm: return "Type the form"
+        case .fullTable: return "Full table"
+        case .whichPerson: return "Which person?"
+        case .speak: return "Speak"
+        case .translateChoice: return "Choose the verb"
+        case .translateGerman: return "Type EN → DE"
+        case .translateEnglish: return "Type DE → EN"
+        case .translateSpeak: return "Say the verb"
         }
     }
 
@@ -349,7 +349,7 @@ public enum VerbExtractionPrompt {
         - group: one of "modal", "separable", "reflexive", "irregular", "stemChanging", "regular" \
         (choose the first that applies in this order; sein, haben and werden are "irregular", \
         verbs changing vowel in du/er like fahren or sprechen are "stemChanging").
-        - note: in Italian, at most 8 words on what to watch out for (e.g. "a → ä con du ed er"), null if regular.
+        - note: in English, at most 8 words on what to watch out for (e.g. "a → ä with du and er"), null if regular.
         - emoji: exactly ONE emoji that evokes the verb.
 
         Answer with JSON only, shaped as {"verbs": [ ... ]}.

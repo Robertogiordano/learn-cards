@@ -98,7 +98,7 @@ public enum CoachPrompt {
         let verbKinds = VerbExerciseKind.allCases.map(\.rawValue).joined(separator: ", ")
         let numberKinds = NumberExerciseKind.allCases.map(\.rawValue).joined(separator: ", ")
         return """
-        You are a German teacher preparing today's lesson for an Italian learner who studies with \
+        You are a German teacher preparing today's lesson for an English-speaking learner who studies with \
         flashcards. You receive a JSON summary of the learner: daily goal in minutes, their request \
         for today (may be empty), mastery per word theme, phrase category, verb group and number \
         level, and their recent mistakes.
@@ -111,7 +111,7 @@ public enum CoachPrompt {
         Answer with JSON only:
         {"message": "...", "blocks": [{"type": "...", "groups": [...], "areas": [...], "focus": "...", \
         "exercise": "...", "count": n, "level": n|null}]}
-        - message: 2-3 sentences in Italian, warm and concrete: what we work on today and why \
+        - message: 2-3 sentences in English, warm and concrete: what we work on today and why \
         (mention the typical mistake if there is one).
         - type: "words", "phrases", "verbs" or "numbers".
         - groups: word themes, phrase categories or verb groups from the summary; [] for any.

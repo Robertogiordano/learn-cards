@@ -26,12 +26,12 @@ struct PhraseExerciseView: View {
                     session.submitPhrase(PhraseChecker.check(text, accepted: entry.accepted), given: text)
                 }
             case .cloze:
-                SentenceTypingView(placeholder: "Parola mancante", isAnswered: isAnswered) { text in
+                SentenceTypingView(placeholder: "Missing word", isAnswered: isAnswered) { text in
                     let answer = question.cloze?.answer ?? ""
                     session.submitPhrase(AnswerChecker.compareGerman(text, answer), given: text)
                 }
             case .speak:
-                SpeechAnswerView(hint: "Tocca il microfono e di' la frase", isAnswered: isAnswered) { transcripts in
+                SpeechAnswerView(hint: "Tap the microphone and say the sentence", isAnswered: isAnswered) { transcripts in
                     session.submitPhrase(PhraseChecker.checkSpoken(transcripts, accepted: entry.accepted),
                                          given: transcripts.first ?? "—")
                 }
@@ -61,12 +61,12 @@ private struct PhrasePromptCard: View {
 
     private var instruction: String {
         switch question.kind {
-        case .reorder: return "Metti le parole nell'ordine giusto"
-        case .translate: return "Scrivi in tedesco"
-        case .questionFromAnswer: return "Qual è la domanda?"
-        case .cloze: return "Completa la frase"
-        case .dictation: return "Ascolta e scrivi la frase"
-        case .speak: return "Di' in tedesco"
+        case .reorder: return "Put the words in the right order"
+        case .translate: return "Type it in German"
+        case .questionFromAnswer: return "What is the question?"
+        case .cloze: return "Complete the sentence"
+        case .dictation: return "Listen and type the sentence"
+        case .speak: return "Say it in German"
         }
     }
 
@@ -86,7 +86,7 @@ private struct PhrasePromptCard: View {
                 Text(entry.response ?? "")
                     .font(.title3.weight(.semibold))
                     .multilineTextAlignment(.center)
-                Text("Risposta · \(entry.english)")
+                Text("Answer · \(entry.english)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -108,7 +108,7 @@ private struct PhrasePromptCard: View {
                             .frame(width: 84, height: 84)
                             .background(Circle().fill(Color.accentColor.opacity(0.15)))
                     }
-                    .accessibilityLabel("Ascolta di nuovo")
+                    .accessibilityLabel("Listen again")
                     Button {
                         Speaker.shared.speak(entry.german, slow: true)
                     } label: {
@@ -117,7 +117,7 @@ private struct PhrasePromptCard: View {
                             .frame(width: 52, height: 52)
                             .background(Circle().fill(Color.accentColor.opacity(0.1)))
                     }
-                    .accessibilityLabel("Ascolta lentamente")
+                    .accessibilityLabel("Listen slowly")
                 }
             case .reorder, .translate, .speak:
                 Text(entry.english)
@@ -172,7 +172,7 @@ private struct ReorderView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
 
             if !isAnswered {
-                Button("Controlla") {
+                Button("Check") {
                     onSubmit(chosen.map { tiles[$0] })
                 }
                 .buttonStyle(.borderedProminent)
@@ -200,7 +200,7 @@ private struct ReorderView: View {
 
 /// A multi-line field for whole sentences.
 private struct SentenceTypingView: View {
-    var placeholder = "Scrivi in tedesco"
+    var placeholder = "Type in German"
     let isAnswered: Bool
     let onSubmit: (String) -> Void
 
@@ -218,10 +218,10 @@ private struct SentenceTypingView: View {
                 .submitLabel(.done)
                 .onSubmit(submit)
             if !isAnswered {
-                Button("Controlla", action: submit)
+                Button("Check", action: submit)
                     .buttonStyle(.borderedProminent)
                     .disabled(text.trimmed.isEmpty)
-                Text("Maiuscole e punteggiatura non contano; puoi scrivere ae, oe, ue, ss.")
+                Text("Capitals and punctuation do not matter; you can type ae, oe, ue, ss.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -261,9 +261,9 @@ private struct PhraseFeedbackPanel: View {
 
     private var title: String {
         switch feedback.verdict {
-        case .correct: return feedback.overridden ? "Ok, contata giusta" : "Giusto!"
-        case .almost: return "Quasi: controlla l'ortografia"
-        case .wrong: return "Sbagliato"
+        case .correct: return feedback.overridden ? "OK, counted as right" : "Right!"
+        case .almost: return "Almost: check the spelling"
+        case .wrong: return "Wrong"
         }
     }
 
@@ -294,7 +294,7 @@ private struct PhraseFeedbackPanel: View {
                 .foregroundStyle(color)
 
             if feedback.verdict != .correct || feedback.overridden {
-                Text("Hai risposto: \(feedback.given)")
+                Text("You answered: \(feedback.given)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -312,7 +312,7 @@ private struct PhraseFeedbackPanel: View {
                 .buttonStyle(.borderless)
             }
             if !entry.variants.isEmpty {
-                Text("Anche: " + entry.variants.joined(separator: " · "))
+                Text("Also: " + entry.variants.joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -338,18 +338,18 @@ private struct PhraseFeedbackPanel: View {
                     Button {
                         isEditing = true
                     } label: {
-                        Label("Modifica frase…", systemImage: "pencil")
+                        Label("Edit phrase…", systemImage: "pencil")
                     }
                 } label: {
                     Image(systemName: "flag")
                 }
                 .buttonStyle(.bordered)
-                .accessibilityLabel("Segnala errore")
+                .accessibilityLabel("Report a mistake")
                 if feedback.verdict != .correct && question.kind != .reorder {
-                    Button("Avevo ragione", action: onOverride)
+                    Button("I was right", action: onOverride)
                         .buttonStyle(.bordered)
                 }
-                Button("Continua", action: onContinue)
+                Button("Continue", action: onContinue)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -363,7 +363,7 @@ private struct PhraseFeedbackPanel: View {
             }
         }
         .sheet(isPresented: $isEditing) {
-            PhraseEditView(title: "Modifica frase", entry: entry, categories: categories, onSave: onEdit)
+            PhraseEditView(title: "Edit phrase", entry: entry, categories: categories, onSave: onEdit)
         }
     }
 }

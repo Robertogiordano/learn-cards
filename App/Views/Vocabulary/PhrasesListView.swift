@@ -25,7 +25,7 @@ struct PhrasesListView: View {
 
         return List {
             if !phrases.isEmpty {
-                Text("\(phrases.count) frasi in \(phrases.categories.count) categorie")
+                Text("\(phrases.count) phrases in \(phrases.categories.count) categories")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .listRowBackground(Color.clear)
@@ -53,27 +53,27 @@ struct PhrasesListView: View {
         .overlay {
             if phrases.isEmpty {
                 ContentUnavailableView(
-                    "Nessuna frase",
+                    "No phrases",
                     systemImage: "text.bubble",
-                    description: Text("Nella scheda Aggiungi scegli «Frasi» e fotografa una pagina, oppure aggiungine una con +.")
+                    description: Text("In the Add tab choose “Phrases” and take a photo of a page, or add one with +.")
                 )
             }
         }
-        .searchable(text: $search, prompt: "Cerca nelle frasi")
-        .navigationTitle("Frasi")
+        .searchable(text: $search, prompt: "Search phrases")
+        .navigationTitle("Phrases")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { isAdding = true } label: { Label("Aggiungi", systemImage: "plus") }
+                Button { isAdding = true } label: { Label("Add", systemImage: "plus") }
             }
         }
         .sheet(item: $editing) { phrase in
-            PhraseEditView(title: "Modifica frase", entry: phrase.entry, categories: phrases.categories) { updated in
+            PhraseEditView(title: "Edit phrase", entry: phrase.entry, categories: phrases.categories) { updated in
                 phrase.update(from: updated)
                 try? context.save()
             }
         }
         .sheet(isPresented: $isAdding) {
-            PhraseEditView(title: "Nuova frase", entry: PhraseEntry(german: "", english: ""),
+            PhraseEditView(title: "New phrase", entry: PhraseEntry(german: "", english: ""),
                            categories: phrases.categories) { entry in
                 if let existing = phrases.first(where: { $0.dedupeKey == entry.dedupeKey }) {
                     existing.update(from: entry)

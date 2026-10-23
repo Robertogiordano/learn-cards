@@ -43,9 +43,9 @@ enum ImportKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .words: return "Parole"
-        case .phrases: return "Frasi"
-        case .verbs: return "Verbi"
+        case .words: return "Words"
+        case .phrases: return "Phrases"
+        case .verbs: return "Verbs"
         }
     }
 }
@@ -80,7 +80,7 @@ struct ImportView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    Picker("Cosa carichi", selection: $kindRaw) {
+                    Picker("What you upload", selection: $kindRaw) {
                         ForEach(ImportKind.allCases) { kind in
                             Text(kind.title).tag(kind.rawValue)
                         }
@@ -89,7 +89,7 @@ struct ImportView: View {
                     .disabled(isExtracting)
 
                     if importKind == .phrases, let extras = phraseExtrasLabel {
-                        Text("\(extras) · cambia in Impostazioni")
+                        Text("\(extras) · change in Settings")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -97,7 +97,7 @@ struct ImportView: View {
                     preview
 
                     if !hasAPIKey {
-                        Label("Imposta la API key di OpenRouter nelle Impostazioni.", systemImage: "key")
+                        Label("Set your OpenRouter API key in Settings.", systemImage: "key")
                             .foregroundStyle(.orange)
                     }
 
@@ -113,7 +113,7 @@ struct ImportView: View {
                         .padding()
                     } else {
                         Button { showCamera = true } label: {
-                            Label("Scatta una foto", systemImage: "camera")
+                            Label("Take a photo", systemImage: "camera")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -121,7 +121,7 @@ struct ImportView: View {
                         .disabled(!hasAPIKey || !UIImagePickerController.isSourceTypeAvailable(.camera))
 
                         PhotosPicker(selection: $pickerItem, matching: .images) {
-                            Label("Scegli dalla libreria", systemImage: "photo.on.rectangle")
+                            Label("Choose from library", systemImage: "photo.on.rectangle")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
@@ -134,7 +134,7 @@ struct ImportView: View {
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                         if let lastImage, !isExtracting {
-                            Button("Riprova") { extract(lastImage) }
+                            Button("Try again") { extract(lastImage) }
                         }
                     }
 
@@ -151,7 +151,7 @@ struct ImportView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Aggiungi parole")
+            .navigationTitle("Add")
             .onAppear { hasAPIKey = Secrets.openRouterKey != nil }
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
@@ -166,15 +166,15 @@ struct ImportView: View {
                 switch review {
                 case .phrases(let batch):
                     ReviewPhrasesView(phrases: batch.phrases) { count in
-                        addSaved(count == 1 ? "1 frase salvata" : "\(count) frasi salvate")
+                        addSaved(count == 1 ? "1 phrase saved" : "\(count) phrases saved")
                     }
                 case .words(let batch):
                     ReviewExtractedView(entries: batch.entries) { count in
-                        addSaved(count == 1 ? "1 parola salvata" : "\(count) parole salvate")
+                        addSaved(count == 1 ? "1 word saved" : "\(count) words saved")
                     }
                 case .verbs(let batch):
                     ReviewVerbsView(verbs: batch.verbs, skipped: batch.skipped) { count in
-                        addSaved(count == 1 ? "1 verbo salvato" : "\(count) verbi salvati")
+                        addSaved(count == 1 ? "1 verb saved" : "\(count) verbs saved")
                     }
                 }
             }
@@ -204,19 +204,19 @@ struct ImportView: View {
 
     private var extractingTitle: String {
         switch importKind {
-        case .words: return "Estraggo le parole…"
+        case .words: return "Extracting words…"
         case .phrases:
-            return phraseExtrasLabel == nil ? "Estraggo le frasi…" : "Estraggo frasi\(phraseImportWords && phraseImportVerbs ? ", parole e verbi" : phraseImportWords ? " e parole" : " e verbi")…"
-        case .verbs: return "Cerco i verbi…"
+            return phraseExtrasLabel == nil ? "Extracting phrases…" : "Extracting phrases\(phraseImportWords && phraseImportVerbs ? ", words and verbs" : phraseImportWords ? " and words" : " and verbs")…"
+        case .verbs: return "Looking for verbs…"
         }
     }
 
     /// The extra extractions a phrase import runs, nil when both are off.
     private var phraseExtrasLabel: String? {
         switch (phraseImportWords, phraseImportVerbs) {
-        case (true, true): return "+ parole e verbi"
-        case (true, false): return "+ parole"
-        case (false, true): return "+ verbi"
+        case (true, true): return "+ words and verbs"
+        case (true, false): return "+ words"
+        case (false, true): return "+ verbs"
         case (false, false): return nil
         }
     }
@@ -224,11 +224,11 @@ struct ImportView: View {
     private var importHint: String {
         switch importKind {
         case .words:
-            return "Fotografa una pagina di esercizi: estraggo le parole da imparare, ognuna con la sua emoji."
+            return "Take a photo of an exercise page: I extract the words to learn, each with its emoji."
         case .phrases:
-            return "Fotografa frasi, modi di dire o esercizi come \"Wie heißt die Frage?\": estraggo le frasi, completo le parti mancanti e le raggruppo per categoria."
+            return "Take a photo of phrases, idioms or exercises like \"Wie heißt die Frage?\": I extract the phrases, fill in the missing parts and group them by category."
         case .verbs:
-            return "Fotografa una pagina con verbi (liste, tabelle, testi): estraggo ogni verbo con la coniugazione al presente."
+            return "Take a photo of a page with verbs (lists, tables, texts): I extract each verb with its present tense."
         }
     }
 
@@ -238,7 +238,7 @@ struct ImportView: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
-                errorMessage = "Impossibile leggere l'immagine."
+                errorMessage = "Could not read the image."
                 return
             }
             extract(image)
@@ -258,7 +258,7 @@ struct ImportView: View {
             return
         }
         guard let jpeg = ImagePreprocessor.jpegData(from: image) else {
-            errorMessage = "Impossibile preparare l'immagine."
+            errorMessage = "Could not prepare the image."
             return
         }
         let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
@@ -284,7 +284,7 @@ struct ImportView: View {
             case .verbs:
                 do {
                     let outcome = try await Self.extractNewVerbs(client: wordClient, jpeg: jpeg, savedKeys: savedVerbKeys) { count in
-                        progressTitle = count == 1 ? "Coniugo 1 verbo nuovo…" : "Coniugo \(count) verbi nuovi…"
+                        progressTitle = count == 1 ? "Conjugating 1 new verb…" : "Conjugating \(count) new verbs…"
                     }
                     handle(outcome)
                 } catch {
@@ -308,12 +308,12 @@ struct ImportView: View {
                     // Verbs go to their own section when that extraction runs too.
                     let kept = alsoVerbs ? entries.filter { $0.partOfSpeech != .verb } : entries
                     if !kept.isEmpty { found.append(.words(ExtractedBatch(entries: kept))) }
-                case .failure(let error)?: notices.append("Parole: \(error.localizedDescription)")
+                case .failure(let error)?: notices.append("Words: \(error.localizedDescription)")
                 case nil: break
                 }
                 switch await verbResult {
                 case .success(let outcome)?: handle(outcome, into: &found)
-                case .failure(let error)?: notices.append("Verbi: \(error.localizedDescription)")
+                case .failure(let error)?: notices.append("Verbs: \(error.localizedDescription)")
                 case nil: break
                 }
                 queueReviews(found)
@@ -360,8 +360,8 @@ struct ImportView: View {
             found.append(.verbs(batch))
         case .allKnown(let count):
             notices.append(count == 1
-                ? "Il verbo della foto è già nel vocabolario"
-                : "Tutti i \(count) verbi della foto sono già nel vocabolario")
+                ? "The verb in the photo is already in your vocabulary"
+                : "All \(count) verbs in the photo are already in your vocabulary")
         }
     }
 

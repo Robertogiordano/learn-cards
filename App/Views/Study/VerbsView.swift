@@ -31,9 +31,9 @@ struct VerbsRow: View {
             Text("🔤")
                 .font(.title)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Verbi")
+                Text("Verbs")
                     .font(.headline)
-                Text(verbs.isEmpty ? "Carica verbi dalla scheda Aggiungi" : "\(verbs.count) verbi · presente")
+                Text(verbs.isEmpty ? "Add verbs from the Add tab" : "\(verbs.count) verbs · present")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -74,9 +74,9 @@ struct VerbsView: View {
         return List {
             if verbs.isEmpty {
                 ContentUnavailableView(
-                    "Ancora nessun verbo",
+                    "No verbs yet",
                     systemImage: "text.word.spacing",
-                    description: Text("Nella scheda Aggiungi scegli «Verbi» e fotografa una pagina con verbi o tabelle di coniugazione.")
+                    description: Text("In the Add tab choose “Verbs” and take a photo of a page with verbs or conjugation tables.")
                 )
             } else {
                 Section {
@@ -88,9 +88,9 @@ struct VerbsView: View {
                 Section {
                     HStack(spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(group?.label ?? "Tutti i verbi")
+                            Text(group?.label ?? "All verbs")
                                 .font(.title3.bold())
-                            Text("\(scoped.count) verbi · \(due) da ripassare · \(new) nuovi")
+                            Text("\(scoped.count) verbs · \(due) to review · \(new) new")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -103,7 +103,7 @@ struct VerbsView: View {
                     Button {
                         start(.adaptive, wantsSpeaking: speakingInMixed)
                     } label: {
-                        Label("Allena in automatico", systemImage: "wand.and.stars")
+                        Label("Train automatically", systemImage: "wand.and.stars")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
@@ -111,24 +111,24 @@ struct VerbsView: View {
                     .tint(.verbs)
                     .controlSize(.large)
 
-                    ExerciseTile(title: "Misto", systemImage: "shuffle", value: nil, color: .verbs) {
+                    ExerciseTile(title: "Mixed", systemImage: "shuffle", value: nil, color: .verbs) {
                         start(.mixed, wantsSpeaking: speakingInMixed)
                     }
                 } footer: {
-                    Text("Ogni esercizio ha la sua percentuale: una risposta giusta vale metà verbo, due di fila il verbo intero. «Automatico» parte dal significato (scegli il verbo) e arriva alla tabella completa e alla pronuncia.")
+                    Text("Each exercise has its own percentage: one right answer is worth half a verb, two in a row the whole verb. “Automatic” starts from the meaning (choose the verb) and works up to the full table and speaking.")
                 }
 
-                tileSection("Traduzione", kinds: VerbExerciseKind.translationKinds, mastery: kinds, streaks: streaks)
-                tileSection("Coniugazione al presente", kinds: VerbExerciseKind.conjugationKinds, mastery: kinds, streaks: streaks)
+                tileSection("Translation", kinds: VerbExerciseKind.translationKinds, mastery: kinds, streaks: streaks)
+                tileSection("Present tense conjugation", kinds: VerbExerciseKind.conjugationKinds, mastery: kinds, streaks: streaks)
             }
         }
         .listSectionSpacing(.compact)
-        .navigationTitle("Verbi")
+        .navigationTitle("Verbs")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
         }
-        .alert("Attenzione", isPresented: Binding(isPresent: $alertMessage)) {
+        .alert("Heads up", isPresented: Binding(isPresent: $alertMessage)) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
@@ -160,7 +160,7 @@ struct VerbsView: View {
     private var groupChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip(title: "Tutti", value: VerbExercises.mastery(verbs.map(\.kindStreaks)), selected: group == nil) {
+                chip(title: "All", value: VerbExercises.mastery(verbs.map(\.kindStreaks)), selected: group == nil) {
                     group = nil
                 }
                 ForEach(verbs.groups, id: \.self) { item in

@@ -21,15 +21,15 @@ struct NumberExerciseView: View {
                     session.submitNumber(verdict, given: GermanNumbers.digits(exercise.options[index]))
                 }
             case .listenDigits:
-                NumberTypingView(placeholder: "Scrivi le cifre", isDigits: true, isAnswered: isAnswered) { text in
+                NumberTypingView(placeholder: "Type the digits", isDigits: true, isAnswered: isAnswered) { text in
                     session.submitNumber(NumberQuiz.checkDigits(text, number: exercise.number), given: text)
                 }
             case .writeWords:
-                NumberTypingView(placeholder: "Scrivi a lettere", isDigits: false, isAnswered: isAnswered) { text in
+                NumberTypingView(placeholder: "Type it in words", isDigits: false, isAnswered: isAnswered) { text in
                     session.submitNumber(NumberQuiz.checkWords(text, number: exercise.number), given: text)
                 }
             case .speak:
-                SpeechAnswerView(hint: "Tocca il microfono e di' il numero", isAnswered: isAnswered) { transcripts in
+                SpeechAnswerView(hint: "Tap the microphone and say the number", isAnswered: isAnswered) { transcripts in
                     session.submitNumber(NumberQuiz.checkSpoken(transcripts, number: exercise.number),
                                          given: transcripts.first ?? "—")
                 }
@@ -53,10 +53,10 @@ private struct NumberPromptCard: View {
 
     private var instruction: String {
         switch exercise.kind {
-        case .listenChoice: return "Ascolta e scegli il numero"
-        case .listenDigits: return "Ascolta e scrivi il numero in cifre"
-        case .writeWords: return "Scrivi il numero a lettere"
-        case .speak: return "Di' il numero in tedesco"
+        case .listenChoice: return "Listen and choose the number"
+        case .listenDigits: return "Listen and type the number in digits"
+        case .writeWords: return "Write the number in words"
+        case .speak: return "Say the number in German"
         }
     }
 
@@ -75,7 +75,7 @@ private struct NumberPromptCard: View {
                             .frame(width: 96, height: 96)
                             .background(Circle().fill(Color.accentColor.opacity(0.15)))
                     }
-                    .accessibilityLabel("Ascolta di nuovo")
+                    .accessibilityLabel("Listen again")
                     Button {
                         Speaker.shared.speak(String(exercise.number), slow: true)
                     } label: {
@@ -84,7 +84,7 @@ private struct NumberPromptCard: View {
                             .frame(width: 56, height: 56)
                             .background(Circle().fill(Color.accentColor.opacity(0.1)))
                     }
-                    .accessibilityLabel("Ascolta lentamente")
+                    .accessibilityLabel("Listen slowly")
                 }
                 if isAnswered {
                     Text(exercise.digits)
@@ -165,11 +165,11 @@ private struct NumberTypingView: View {
                 .submitLabel(.done)
                 .onSubmit(submit)
             if !isAnswered {
-                Button("Controlla", action: submit)
+                Button("Check", action: submit)
                     .buttonStyle(.borderedProminent)
                     .disabled(text.trimmed.isEmpty)
                 if !isDigits {
-                    Text("Tutto attaccato, come in tedesco: einundzwanzig. Puoi scrivere ss al posto di ß.")
+                    Text("All in one word, as in German: einundzwanzig. You can type ss instead of ß.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -205,9 +205,9 @@ private struct NumberFeedbackPanel: View {
 
     private var title: String {
         switch feedback.verdict {
-        case .correct: return feedback.overridden ? "Ok, contata giusta" : "Giusto!"
-        case .almost: return "Quasi: controlla l'ortografia"
-        case .wrong: return "Sbagliato"
+        case .correct: return feedback.overridden ? "OK, counted as right" : "Right!"
+        case .almost: return "Almost: check the spelling"
+        case .wrong: return "Wrong"
         }
     }
 
@@ -226,7 +226,7 @@ private struct NumberFeedbackPanel: View {
                 .foregroundStyle(color)
 
             if feedback.verdict != .correct || feedback.overridden {
-                Text("Hai risposto: \(feedback.given)")
+                Text("You answered: \(feedback.given)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -248,10 +248,10 @@ private struct NumberFeedbackPanel: View {
 
             HStack {
                 if feedback.verdict != .correct && exercise.kind != .listenChoice {
-                    Button("Avevo ragione", action: onOverride)
+                    Button("I was right", action: onOverride)
                         .buttonStyle(.bordered)
                 }
-                Button("Continua", action: onContinue)
+                Button("Continue", action: onContinue)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }

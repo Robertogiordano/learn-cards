@@ -42,9 +42,9 @@ struct NumbersRow: View {
             Text("🔢")
                 .font(.title)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Numeri")
+                Text("Numbers")
                     .font(.headline)
-                Text("Livello \(level.title)")
+                Text("Level \(level.title)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -71,7 +71,7 @@ struct NumbersView: View {
     var body: some View {
         List {
             Section {
-                Picker("Livello", selection: $levelRaw) {
+                Picker("Level", selection: $levelRaw) {
                     ForEach(NumberLevel.allCases, id: \.self) { level in
                         Text(level.shortTitle).tag(level.rawValue)
                     }
@@ -83,8 +83,8 @@ struct NumbersView: View {
                         Text(level.title)
                             .font(.title2.bold().monospacedDigit())
                         Text(store.stats.mistakes(in: level).isEmpty
-                             ? "Nessun numero da rivedere"
-                             : "\(store.stats.mistakes(in: level).count) numeri sbagliati da rivedere")
+                             ? "No numbers to go over"
+                             : "\(store.stats.mistakes(in: level).count) missed numbers to go over")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -94,7 +94,7 @@ struct NumbersView: View {
                 }
                 .padding(.vertical, 4)
             } footer: {
-                Text("La percentuale di ogni esercizio conta le risposte giuste sulle ultime 20; quella del livello è la media. I numeri che sbagli tornano più spesso.")
+                Text("Each exercise's percentage counts the right answers among the last 20; the level's is their average. Numbers you miss come back more often.")
             }
 
             Section {
@@ -105,7 +105,7 @@ struct NumbersView: View {
                             start(kind)
                         }
                     }
-                    ExerciseTile(title: "Misto", systemImage: "shuffle", value: nil, color: .teal) {
+                    ExerciseTile(title: "Mixed", systemImage: "shuffle", value: nil, color: .teal) {
                         start(nil)
                     }
                 }
@@ -113,12 +113,12 @@ struct NumbersView: View {
             }
         }
         .listSectionSpacing(.compact)
-        .navigationTitle("Numeri")
+        .navigationTitle("Numbers")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
         }
-        .alert("Attenzione", isPresented: Binding(isPresent: $alertMessage)) {
+        .alert("Heads up", isPresented: Binding(isPresent: $alertMessage)) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
@@ -148,7 +148,7 @@ extension NumberLevel {
         case .upTo20: return "0–20"
         case .upTo100: return "–100"
         case .upTo1000: return "–1.000"
-        case .upToMillion: return "–1 mln"
+        case .upToMillion: return "–1M"
         }
     }
 }

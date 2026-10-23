@@ -86,11 +86,11 @@ struct VerbEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Verbo") {
-                    TextField("Infinito, es. fahren", text: $draft.infinitive)
+                Section("Verb") {
+                    TextField("Infinitive, e.g. fahren", text: $draft.infinitive)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Inglese", text: $draft.english)
+                    TextField("English", text: $draft.english)
                         .textInputAutocapitalization(.never)
                 }
                 Section {
@@ -105,15 +105,15 @@ struct VerbEditView: View {
                         }
                     }
                 } header: {
-                    Text("Presente")
+                    Text("Present tense")
                 } footer: {
-                    Text("Separabili con il prefisso in fondo («stehe auf»), riflessivi con il pronome («wasche mich»).")
+                    Text("Separable verbs with the prefix at the end (“stehe auf”), reflexive ones with the pronoun (“wasche mich”).")
                 }
-                Section("Altro") {
-                    Picker("Gruppo", selection: $draft.group) {
+                Section("Other") {
+                    Picker("Group", selection: $draft.group) {
                         ForEach(VerbGroup.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
-                    TextField("Nota", text: $noteText, axis: .vertical)
+                    TextField("Note", text: $noteText, axis: .vertical)
                     TextField("Emoji", text: $draft.emoji)
                 }
             }
@@ -121,10 +121,10 @@ struct VerbEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva", action: save)
+                    Button("Save", action: save)
                         .disabled(!isValid)
                 }
             }
@@ -173,7 +173,7 @@ struct ReviewVerbsView: View {
             List {
                 if !skipped.isEmpty {
                     Section {
-                        Label("\(skipped.count) già nel vocabolario, non riconiugati: \(skipped.joined(separator: ", "))",
+                        Label("\(skipped.count) already in your vocabulary, not conjugated again: \(skipped.joined(separator: ", "))",
                               systemImage: "checkmark.circle")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -196,7 +196,7 @@ struct ReviewVerbsView: View {
                             HStack(spacing: 6) {
                                 Text(item.entry.group.label)
                                 if existingByKey[item.entry.dedupeKey] != nil {
-                                    Text("· già salvato").foregroundStyle(.orange)
+                                    Text("· already saved").foregroundStyle(.orange)
                                 }
                             }
                             .font(.caption2)
@@ -215,19 +215,19 @@ struct ReviewVerbsView: View {
                 }
                 .onDelete { items.remove(atOffsets: $0) }
             }
-            .navigationTitle(items.count == 1 ? "1 verbo trovato" : "\(items.count) verbi trovati")
+            .navigationTitle(items.count == 1 ? "1 verb found" : "\(items.count) verbs found")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva (\(selectedCount))", action: save)
+                    Button("Save (\(selectedCount))", action: save)
                         .disabled(selectedCount == 0)
                 }
             }
             .sheet(item: $editing) { item in
-                VerbEditView(title: "Modifica verbo", entry: item.entry) { updated in
+                VerbEditView(title: "Edit verb", entry: item.entry) { updated in
                     if let index = items.firstIndex(where: { $0.id == item.id }) {
                         items[index].entry = updated
                     }
@@ -291,7 +291,7 @@ struct VerbsListView: View {
         let visible = self.visible
         return List {
             if !verbs.isEmpty {
-                Text(verbs.count == 1 ? "1 verbo" : "\(verbs.count) verbi")
+                Text(verbs.count == 1 ? "1 verb" : "\(verbs.count) verbs")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .listRowBackground(Color.clear)
@@ -319,27 +319,27 @@ struct VerbsListView: View {
         .overlay {
             if verbs.isEmpty {
                 ContentUnavailableView(
-                    "Nessun verbo",
+                    "No verbs",
                     systemImage: "text.word.spacing",
-                    description: Text("Nella scheda Aggiungi scegli «Verbi» e fotografa una pagina, oppure aggiungine uno con +.")
+                    description: Text("In the Add tab choose “Verbs” and take a photo of a page, or add one with +.")
                 )
             }
         }
-        .searchable(text: $search, prompt: "Cerca nei verbi")
-        .navigationTitle("Verbi")
+        .searchable(text: $search, prompt: "Search verbs")
+        .navigationTitle("Verbs")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { isAdding = true } label: { Label("Aggiungi", systemImage: "plus") }
+                Button { isAdding = true } label: { Label("Add", systemImage: "plus") }
             }
         }
         .sheet(item: $editing) { verb in
-            VerbEditView(title: "Modifica verbo", entry: verb.entry) { updated in
+            VerbEditView(title: "Edit verb", entry: verb.entry) { updated in
                 verb.update(from: updated)
                 try? context.save()
             }
         }
         .sheet(isPresented: $isAdding) {
-            VerbEditView(title: "Nuovo verbo", entry: VerbEntry(infinitive: "", english: "", forms: [])) { entry in
+            VerbEditView(title: "New verb", entry: VerbEntry(infinitive: "", english: "", forms: [])) { entry in
                 if let existing = verbs.first(where: { $0.dedupeKey == entry.dedupeKey }) {
                     existing.update(from: entry)
                 } else {

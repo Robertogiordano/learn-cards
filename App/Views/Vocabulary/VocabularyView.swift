@@ -9,9 +9,9 @@ enum VocabularySort: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .recent: return "Più recenti"
-        case .alphabetical: return "Alfabetico"
-        case .hardest: return "Più sbagliate"
+        case .recent: return "Most recent"
+        case .alphabetical: return "Alphabetical"
+        case .hardest: return "Most missed"
         }
     }
 }
@@ -32,7 +32,7 @@ struct VocabularyView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Picker("Mostra", selection: $kindRaw) {
+                    Picker("Show", selection: $kindRaw) {
                         ForEach(ImportKind.allCases) { kind in
                             Text(kind.title).tag(kind.rawValue)
                         }
@@ -85,7 +85,7 @@ struct WordsListView: View {
         Group {
             List {
                 if !words.isEmpty {
-                    Text("\(words.count) parole in \(words.categories.count) temi · \(dueCount) da ripassare")
+                    Text("\(words.count) words in \(words.categories.count) themes · \(dueCount) to review")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .listRowBackground(Color.clear)
@@ -105,42 +105,42 @@ struct WordsListView: View {
             .overlay {
                 if words.isEmpty {
                     ContentUnavailableView(
-                        "Nessuna parola",
+                        "No words",
                         systemImage: "books.vertical",
-                        description: Text("Fotografa una pagina dalla scheda Aggiungi, oppure inserisci una parola a mano con +.")
+                        description: Text("Take a photo of a page from the Add tab, or enter a word by hand with +.")
                     )
                 }
             }
-            .searchable(text: $search, prompt: "Cerca in tedesco o inglese")
-            .navigationTitle("Vocabolario")
+            .searchable(text: $search, prompt: "Search in German or English")
+            .navigationTitle("Vocabulary")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker("Ordina", selection: $sort) {
+                        Picker("Sort", selection: $sort) {
                             ForEach(VocabularySort.allCases) { Text($0.title).tag($0) }
                         }
-                        Picker("Tema", selection: $themeFilter) {
-                            Text("Tutti i temi").tag(String?.none)
+                        Picker("Theme", selection: $themeFilter) {
+                            Text("All themes").tag(String?.none)
                             ForEach(words.categories, id: \.self) { theme in
                                 Text(theme).tag(String?.some(theme))
                             }
                         }
                     } label: {
-                        Label("Ordina e filtra", systemImage: "line.3.horizontal.decrease.circle")
+                        Label("Sort and filter", systemImage: "line.3.horizontal.decrease.circle")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { isAdding = true } label: { Label("Aggiungi", systemImage: "plus") }
+                    Button { isAdding = true } label: { Label("Add", systemImage: "plus") }
                 }
             }
             .sheet(item: $editing) { word in
-                WordEditView(title: "Modifica", entry: word.entry, themes: words.categories) { updated in
+                WordEditView(title: "Edit", entry: word.entry, themes: words.categories) { updated in
                     word.update(from: updated)
                     try? context.save()
                 }
             }
             .sheet(isPresented: $isAdding) {
-                WordEditView(title: "Nuova parola", entry: VocabEntry(german: "", english: []), themes: words.categories) { entry in
+                WordEditView(title: "New word", entry: VocabEntry(german: "", english: []), themes: words.categories) { entry in
                     context.insert(Word(entry: entry))
                     try? context.save()
                 }
@@ -182,7 +182,7 @@ struct WordRow: View {
                 Circle()
                     .fill(Color.orange)
                     .frame(width: 8, height: 8)
-                    .accessibilityLabel("Da ripassare")
+                    .accessibilityLabel("Due for review")
             }
         }
         .contentShape(Rectangle())

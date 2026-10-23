@@ -27,8 +27,8 @@ public enum PhraseExtractionPrompt {
         - response: for question/answer pairs, the German answer; null otherwise.
         - note: for idioms, the literal meaning or a short explanation in English; null otherwise.
         - kind: "question", "idiom" or "sentence".
-        - category: a short category written in Italian, 1 to 3 words, first letter capitalized \
-        (for example Domande personali, Modi di dire, Al ristorante, Tempo libero). \(categories) \
+        - category: a short category written in English, 1 to 3 words, first letter capitalized \
+        (for example Personal questions, Idioms, At the restaurant, Free time). \(categories) \
         Reuse an existing category, spelled exactly the same, whenever the phrase fits it.
         - emoji: exactly ONE emoji that evokes the sentence.
 

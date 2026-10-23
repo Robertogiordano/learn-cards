@@ -40,7 +40,7 @@ struct SettingsView: View {
                 importSection
                 backupSection
             }
-            .navigationTitle("Impostazioni")
+            .navigationTitle("Settings")
             .onAppear { apiKey = Secrets.openRouterKey ?? "" }
             .fileExporter(
                 isPresented: $isExporting,
@@ -51,7 +51,7 @@ struct SettingsView: View {
                 switch result {
                 case .success:
                     lastExport = Date().timeIntervalSince1970
-                    message = "Backup esportato: \(words.count) parole, \(phrases.count) frasi e \(verbs.count) verbi."
+                    message = "Backup exported: \(words.count) words, \(phrases.count) phrases and \(verbs.count) verbs."
                 case .failure(let error):
                     message = error.localizedDescription
                 }
@@ -63,33 +63,33 @@ struct SettingsView: View {
                         pendingImport = try BackupService.prepareImport(from: url, existing: words, existingPhrases: phrases,
                                                                              existingVerbs: verbs)
                     } catch {
-                        message = "Backup non valido: \(error.localizedDescription)"
+                        message = "Invalid backup: \(error.localizedDescription)"
                     }
                 case .failure(let error):
                     message = error.localizedDescription
                 }
             }
             .confirmationDialog(
-                "Importa backup",
+                "Import backup",
                 isPresented: Binding(isPresent: $pendingImport),
                 titleVisibility: .visible,
                 presenting: pendingImport
             ) { pending in
-                Button("Unisci: \(pending.newCount) nuove, \(pending.updatedCount) aggiornate") {
-                    run(success: "Import completato: \(pending.newCount) nuove, \(pending.updatedCount) aggiornate.") {
+                Button("Merge: \(pending.newCount) new, \(pending.updatedCount) updated") {
+                    run(success: "Import complete: \(pending.newCount) new, \(pending.updatedCount) updated.") {
                         try BackupService.applyMerge(pending, existing: words, existingPhrases: phrases,
                                                     existingVerbs: verbs, context: context)
                     }
                 }
-                Button("Sostituisci tutto (\(pending.backup.words.count) parole, \(pending.phraseCount) frasi, \(pending.verbCount) verbi)", role: .destructive) {
-                    run(success: "Vocabolario sostituito con il backup.") {
+                Button("Replace everything (\(pending.backup.words.count) words, \(pending.phraseCount) phrases, \(pending.verbCount) verbs)", role: .destructive) {
+                    run(success: "Vocabulary replaced with the backup.") {
                         try BackupService.replaceAll(with: pending.backup, existing: words, existingPhrases: phrases,
                                                     existingVerbs: verbs, context: context)
                     }
                 }
-                Button("Annulla", role: .cancel) {}
+                Button("Cancel", role: .cancel) {}
             } message: { pending in
-                Text("Il backup del \(pending.backup.exportedAt.formatted(date: .abbreviated, time: .shortened)) contiene \(pending.backup.words.count) parole, \(pending.phraseCount) frasi e \(pending.verbCount) verbi. Unisci tiene la versione più recente di ognuno; Sostituisci cancella vocabolario, frasi e verbi attuali.")
+                Text("The backup from \(pending.backup.exportedAt.formatted(date: .abbreviated, time: .shortened)) holds \(pending.backup.words.count) words, \(pending.phraseCount) phrases and \(pending.verbCount) verbs. Merge keeps the most recent version of each; Replace deletes your current vocabulary, phrases and verbs.")
             }
             .alert("Backup", isPresented: Binding(isPresent: $message)) {
                 Button("OK", role: .cancel) {}
@@ -104,9 +104,9 @@ struct SettingsView: View {
             SecureField("sk-or-…", text: $apiKey)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            Button("Salva API key") {
+            Button("Save API key") {
                 let saved = KeychainStore.set(apiKey.trimmed, for: Secrets.openRouterAccount)
-                keyStatus = saved ? "Salvata nel Portachiavi." : "Impossibile salvare la key."
+                keyStatus = saved ? "Saved in the Keychain." : "Could not save the key."
             }
             .disabled(apiKey.trimmed.isEmpty)
             if let keyStatus {
@@ -114,11 +114,11 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            Link("Crea una key su openrouter.ai", destination: URL(string: "https://openrouter.ai/keys")!)
+            Link("Create a key on openrouter.ai", destination: URL(string: "https://openrouter.ai/keys")!)
         } header: {
             Text("OpenRouter")
         } footer: {
-            Text("La key resta solo su questo iPhone e non viene inclusa nei backup.")
+            Text("The key stays on this iPhone only and is not included in backups.")
         }
     }
 
@@ -143,33 +143,33 @@ struct SettingsView: View {
                     }
                 }
             }
-            TextField("Altro modello (id OpenRouter)", text: $model)
+            TextField("Other model (OpenRouter id)", text: $model)
                 .font(.callout.monospaced())
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
         } header: {
-            Text("Modello per l'estrazione")
+            Text("Extraction model")
         } footer: {
-            Text("Serve un modello che accetti immagini. Puoi incollare qualsiasi id da openrouter.ai/models.")
+            Text("It needs a model that accepts images. You can paste any id from openrouter.ai/models.")
         }
     }
 
     private var goalSection: some View {
         Section {
-            Picker("Obiettivo giornaliero", selection: $goalMinutes) {
-                Text("Nessuno").tag(0)
+            Picker("Daily goal", selection: $goalMinutes) {
+                Text("None").tag(0)
                 ForEach([5, 10, 15, 20], id: \.self) { minutes in
                     Text("\(minutes) min").tag(minutes)
                 }
             }
-            Toggle("Promemoria", isOn: $reminderEnabled)
+            Toggle("Reminder", isOn: $reminderEnabled)
             if reminderEnabled {
-                DatePicker("Ora del promemoria", selection: reminderTime, displayedComponents: .hourAndMinute)
+                DatePicker("Reminder time", selection: reminderTime, displayedComponents: .hourAndMinute)
             }
         } header: {
-            Text("Obiettivo")
+            Text("Goal")
         } footer: {
-            Text("La lezione del giorno dura quanto l'obiettivo. Il promemoria arriva solo nei giorni in cui non l'hai ancora raggiunto.")
+            Text("Today's lesson lasts as long as your goal. The reminder only comes on days you have not reached it yet.")
         }
         .onChange(of: goalMinutes) { _, _ in
             refreshLocalLesson()
@@ -179,7 +179,7 @@ struct SettingsView: View {
             Task { @MainActor in
                 if enabled, !(await ReminderScheduler.requestAuthorization()) {
                     reminderEnabled = false
-                    message = "Per i promemoria consenti le notifiche in Impostazioni > LearnCards."
+                    message = "To get reminders, allow notifications in Settings > LearnCards."
                 }
                 ReminderScheduler.reschedule()
             }
@@ -204,24 +204,24 @@ struct SettingsView: View {
     }
 
     private var studySection: some View {
-        Section("Studio") {
-            Stepper("Parole nuove per lezione: \(lessonNewWords)", value: $lessonNewWords, in: 3...30)
-            Stepper("Domande bonus: \(bonusSize)", value: $bonusSize, in: 5...50, step: 5)
-            Stepper("Parole per sessione libera o tema: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
-            Toggle("Pronuncia nel misto", isOn: $speakingInMixed)
-            Toggle("Leggi ad alta voce la soluzione", isOn: $autoSpeak)
-            Toggle("Mostra le emoji negli esercizi", isOn: $showEmoji)
+        Section("Study") {
+            Stepper("New words per lesson: \(lessonNewWords)", value: $lessonNewWords, in: 3...30)
+            Stepper("Bonus questions: \(bonusSize)", value: $bonusSize, in: 5...50, step: 5)
+            Stepper("Words per free or theme session: \(sessionSize)", value: $sessionSize, in: 5...100, step: 5)
+            Toggle("Speaking in mixed sessions", isOn: $speakingInMixed)
+            Toggle("Read the answer aloud", isOn: $autoSpeak)
+            Toggle("Show emoji in exercises", isOn: $showEmoji)
         }
     }
 
     private var importSection: some View {
         Section {
-            Toggle("Estrai anche le parole", isOn: $phraseImportWords)
-            Toggle("Estrai anche i verbi", isOn: $phraseImportVerbs)
+            Toggle("Also extract words", isOn: $phraseImportWords)
+            Toggle("Also extract verbs", isOn: $phraseImportVerbs)
         } header: {
-            Text("Importazione frasi")
+            Text("Phrase import")
         } footer: {
-            Text("Quando carichi frasi, dalla stessa foto estraggo anche parole e verbi. Con Parole o Verbi si estrae solo quello.")
+            Text("When you upload phrases, words and verbs are extracted from the same photo too. With Words or Verbs only that is extracted.")
         }
     }
 
@@ -235,14 +235,14 @@ struct SettingsView: View {
                     message = error.localizedDescription
                 }
             } label: {
-                Label("Esporta vocabolario", systemImage: "square.and.arrow.up")
+                Label("Export vocabulary", systemImage: "square.and.arrow.up")
             }
             .disabled(words.isEmpty && phrases.isEmpty && verbs.isEmpty)
 
             Button {
                 isImporting = true
             } label: {
-                Label("Importa backup", systemImage: "square.and.arrow.down")
+                Label("Import backup", systemImage: "square.and.arrow.down")
             }
         } header: {
             Text("Backup")
@@ -253,10 +253,10 @@ struct SettingsView: View {
 
     private var lastExportText: String {
         guard lastExport > 0 else {
-            return "Non hai ancora esportato un backup. I dati stanno solo su questo iPhone: esporta ogni tanto su File o iCloud Drive."
+            return "You have not exported a backup yet. Your data lives only on this iPhone: export now and then to Files or iCloud Drive."
         }
         let date = Date(timeIntervalSince1970: lastExport)
-        return "Ultimo export: \(date.formatted(.relative(presentation: .named)))."
+        return "Last export: \(date.formatted(.relative(presentation: .named)))."
     }
 
     private func run(success: String, _ action: () throws -> Void) {
@@ -264,7 +264,7 @@ struct SettingsView: View {
             try action()
             message = success
         } catch {
-            message = "Import non riuscito: \(error.localizedDescription)"
+            message = "Import failed: \(error.localizedDescription)"
         }
     }
 }

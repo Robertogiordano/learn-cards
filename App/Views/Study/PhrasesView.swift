@@ -28,10 +28,10 @@ struct PhrasesRow: View {
             Text("💬")
                 .font(.title)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Frasi")
+                Text("Phrases")
                     .font(.headline)
-                Text(phrases.isEmpty ? "Carica frasi dalla scheda Aggiungi"
-                                     : "\(phrases.count) frasi · \(phrases.categories.count) categorie")
+                Text(phrases.isEmpty ? "Add phrases from the Add tab"
+                                     : "\(phrases.count) phrases · \(phrases.categories.count) categories")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -72,9 +72,9 @@ struct PhrasesView: View {
         return List {
             if phrases.isEmpty {
                 ContentUnavailableView(
-                    "Ancora nessuna frase",
+                    "No phrases yet",
                     systemImage: "text.bubble",
-                    description: Text("Nella scheda Aggiungi scegli «Frasi» e fotografa una pagina con frasi, modi di dire o esercizi.")
+                    description: Text("In the Add tab choose “Phrases” and take a photo of a page with phrases, idioms or exercises.")
                 )
             } else {
                 Section {
@@ -86,9 +86,9 @@ struct PhrasesView: View {
                 Section {
                     HStack(spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(category ?? "Tutte le frasi")
+                            Text(category ?? "All phrases")
                                 .font(.title3.bold())
-                            Text("\(scoped.count) frasi · \(due) da ripassare · \(new) nuove")
+                            Text("\(scoped.count) phrases · \(due) to review · \(new) new")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -101,7 +101,7 @@ struct PhrasesView: View {
                     Button {
                         start(.adaptive, wantsSpeaking: speakingInMixed)
                     } label: {
-                        Label("Allena in automatico", systemImage: "wand.and.stars")
+                        Label("Train automatically", systemImage: "wand.and.stars")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
@@ -117,23 +117,23 @@ struct PhrasesView: View {
                                 }
                             }
                         }
-                        ExerciseTile(title: "Misto", systemImage: "shuffle", value: nil, color: .phrases) {
+                        ExerciseTile(title: "Mixed", systemImage: "shuffle", value: nil, color: .phrases) {
                             start(.mixed, wantsSpeaking: speakingInMixed)
                         }
                     }
                     .padding(.vertical, 6)
                 } footer: {
-                    Text("Ogni esercizio ha la sua percentuale: una risposta giusta vale metà frase, due di fila la frase intera. «Automatico» parte dal ricomporre la frase e arriva a scriverla e dirla.")
+                    Text("Each exercise has its own percentage: one right answer is worth half a phrase, two in a row the whole phrase. “Automatic” starts from rebuilding the sentence and works up to typing and saying it.")
                 }
             }
         }
         .listSectionSpacing(.compact)
-        .navigationTitle("Frasi")
+        .navigationTitle("Phrases")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
         }
-        .alert("Attenzione", isPresented: Binding(isPresent: $alertMessage)) {
+        .alert("Heads up", isPresented: Binding(isPresent: $alertMessage)) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
@@ -143,7 +143,7 @@ struct PhrasesView: View {
     private var categoryChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip(title: "Tutte", value: PhraseExercises.mastery(phrases.map(\.progressInput)), selected: category == nil) {
+                chip(title: "All", value: PhraseExercises.mastery(phrases.map(\.progressInput)), selected: category == nil) {
                     category = nil
                 }
                 ForEach(phrases.categories, id: \.self) { name in

@@ -14,23 +14,23 @@ struct OpenRouterClient {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                return "Inserisci la API key di OpenRouter nelle Impostazioni."
+                return "Enter your OpenRouter API key in Settings."
             case .http(401, _):
-                return "API key di OpenRouter non valida."
+                return "Invalid OpenRouter API key."
             case .http(402, _):
-                return "Credito OpenRouter esaurito."
+                return "Out of OpenRouter credit."
             case .http(429, _):
-                return "Troppe richieste: riprova tra poco."
+                return "Too many requests: try again shortly."
             case .http(let status, let message):
-                return "Errore OpenRouter (\(status)): \(message)"
+                return "OpenRouter error (\(status)): \(message)"
             case .emptyResponse:
-                return "Il modello non ha restituito alcuna risposta."
+                return "The model returned no answer."
             case .noWords:
-                return "Nessuna parola tedesca trovata nella foto."
+                return "No German words found in the photo."
             case .noPhrases:
-                return "Nessuna frase tedesca trovata nella foto."
+                return "No German phrases found in the photo."
             case .noVerbs:
-                return "Nessun verbo tedesco trovato nella foto."
+                return "No German verbs found in the photo."
             }
         }
     }

@@ -5,16 +5,18 @@ public enum PhraseKind: String, Codable, CaseIterable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .question: return "Domanda"
-        case .idiom: return "Modo di dire"
-        case .sentence: return "Frase"
+        case .question: return "Question"
+        case .idiom: return "Idiom"
+        case .sentence: return "Sentence"
         }
     }
 }
 
 /// A sentence or idiom to learn, independent of how it is stored.
 public struct PhraseEntry: Codable, Hashable, Identifiable, Sendable {
-    public static let defaultCategory = "Frasi utili"
+    public static let defaultCategory = "Useful phrases"
+    /// The default category before the app switched to English, renamed on first launch.
+    public static let legacyDefaultCategory = "Frasi utili"
 
     public var id: UUID
     /// The canonical German sentence, complete and correctly written.
@@ -77,12 +79,12 @@ public enum PhraseExerciseKind: String, CaseIterable, Codable, Hashable, Sendabl
 
     public var title: String {
         switch self {
-        case .reorder: return "Ricomponi la frase"
-        case .translate: return "Traduci e scrivi"
-        case .questionFromAnswer: return "Domanda dalla risposta"
-        case .cloze: return "Completa"
-        case .dictation: return "Dettato"
-        case .speak: return "Pronuncia"
+        case .reorder: return "Rebuild the sentence"
+        case .translate: return "Translate and type"
+        case .questionFromAnswer: return "Question from answer"
+        case .cloze: return "Fill the gap"
+        case .dictation: return "Dictation"
+        case .speak: return "Speak"
         }
     }
 

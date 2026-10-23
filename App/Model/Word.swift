@@ -13,7 +13,7 @@ final class Word {
     var partOfSpeechRaw: String
     var emoji: String
     // Added in v2: defaults let SwiftData migrate existing stores automatically.
-    var category: String = "Varie"
+    var category: String = "Misc"
     var createdAt: Date
     var updatedAt: Date
 
