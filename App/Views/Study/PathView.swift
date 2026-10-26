@@ -114,6 +114,14 @@ struct PathView: View {
                 }
             }
 
+            Section("Word sets") {
+                NavigationLink {
+                    WordSetsView()
+                } label: {
+                    WordSetsRow()
+                }
+            }
+
             Section("Themes") {
                 ForEach(PathPlanner.themeProgress(pathWords)) { progress in
                     NavigationLink {

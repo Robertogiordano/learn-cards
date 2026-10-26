@@ -26,7 +26,8 @@ enum BackupService {
                                              numbers: numbers.isEmpty ? nil : numbers,
                                              phrases: phrases.map(\.backup),
                                              verbs: verbs.map(\.backup),
-                                             activity: ActivityStore.shared.stats))
+                                             activity: ActivityStore.shared.stats,
+                                             wordSets: WordSetStore.shared.sets))
     }
 
     static func defaultFilename(date: Date = .now) -> String {
@@ -79,6 +80,9 @@ enum BackupService {
         if let activity = pending.backup.activity {
             ActivityStore.shared.merge(activity)
         }
+        if let wordSets = pending.backup.wordSets {
+            WordSetStore.shared.merge(wordSets)
+        }
     }
 
     @MainActor
@@ -107,6 +111,7 @@ enum BackupService {
         try context.save()
         NumberStatsStore.shared.replace(with: backup.numbers ?? NumberStats())
         ActivityStore.shared.replace(with: backup.activity ?? ActivityStats())
+        WordSetStore.shared.replace(with: backup.wordSets ?? [])
     }
 }
 

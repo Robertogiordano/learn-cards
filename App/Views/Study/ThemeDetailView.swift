@@ -2,9 +2,11 @@ import LearnCore
 import SwiftData
 import SwiftUI
 
-/// One theme of the path: progress per area and a session to train each one.
+/// One theme of the path, or one word set: progress per area and a session to train each one.
 struct ThemeDetailView: View {
-    let theme: String
+    private let title: String
+    /// The words of a set; nil for a theme, whose words are found by category.
+    private let setWordIDs: Set<UUID>?
 
     @Environment(\.modelContext) private var context
     @Query private var words: [Word]
@@ -14,13 +16,30 @@ struct ThemeDetailView: View {
     @State private var alertMessage: String?
     @State private var expandedAreas: Set<StudyArea> = []
 
+    init(theme: String) {
+        title = theme
+        setWordIDs = nil
+    }
+
+    init(set: WordSet) {
+        title = set.name
+        setWordIDs = Set(set.wordIDs)
+    }
+
     private var themeWords: [Word] {
-        words.filter { $0.category == theme }.sorted { $0.createdAt < $1.createdAt }
+        let scoped = setWordIDs.map { ids in words.filter { ids.contains($0.id) } }
+            ?? words.filter { $0.category == title }
+        return scoped.sorted { $0.createdAt < $1.createdAt }
     }
 
     var body: some View {
         let themeWords = self.themeWords
-        let progress = PathPlanner.themeProgress(themeWords.map(\.pathWord)).first
+        // A set spans several themes: count its words as one group.
+        let progress = PathPlanner.themeProgress(themeWords.map { word in
+            var pathWord = word.pathWord
+            pathWord.category = title
+            return pathWord
+        }).first
 
         return List {
             if let progress {
@@ -46,7 +65,7 @@ struct ThemeDetailView: View {
             }
         }
         .listSectionSpacing(.compact)
-        .navigationTitle(theme)
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
@@ -63,7 +82,7 @@ struct ThemeDetailView: View {
             Text(emoji)
                 .font(.system(size: 44))
             VStack(alignment: .leading, spacing: 4) {
-                Text(theme)
+                Text(title)
                     .font(.title2.bold())
                 Text(progress.newCount > 0
                      ? "\(progress.wordCount) words · \(progress.newCount) new"
