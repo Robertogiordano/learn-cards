@@ -270,25 +270,15 @@ struct ReviewVerbItem: Identifiable {
     var id: UUID { entry.id }
 }
 
-/// Saved verbs grouped by group: search, edit, delete, add by hand.
+/// Saved verbs grouped by group: edit, delete, add by hand.
 struct VerbsListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Verb.infinitive) private var verbs: [Verb]
-    @State private var search = ""
     @State private var editing: Verb?
     @State private var isAdding = false
 
-    private var visible: [Verb] {
-        let query = search.trimmed.lowercased()
-        guard !query.isEmpty else { return verbs }
-        return verbs.filter { verb in
-            verb.infinitive.lowercased().contains(query) || verb.english.lowercased().contains(query)
-                || verb.forms.contains { $0.lowercased().contains(query) }
-        }
-    }
-
     var body: some View {
-        let visible = self.visible
+        let visible = verbs
         return List {
             if !verbs.isEmpty {
                 Text(verbs.count == 1 ? "1 verb" : "\(verbs.count) verbs")
@@ -325,7 +315,6 @@ struct VerbsListView: View {
                 )
             }
         }
-        .searchable(text: $search, prompt: "Search verbs")
         .navigationTitle("Verbs")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

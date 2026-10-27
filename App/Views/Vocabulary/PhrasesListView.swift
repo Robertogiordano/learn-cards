@@ -2,25 +2,15 @@ import LearnCore
 import SwiftData
 import SwiftUI
 
-/// Saved phrases grouped by category: search, edit, delete, add by hand.
+/// Saved phrases grouped by category: edit, delete, add by hand.
 struct PhrasesListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Phrase.createdAt, order: .reverse) private var phrases: [Phrase]
-    @State private var search = ""
     @State private var editing: Phrase?
     @State private var isAdding = false
 
-    private var visible: [Phrase] {
-        let query = search.trimmed.lowercased()
-        guard !query.isEmpty else { return phrases }
-        return phrases.filter { phrase in
-            [phrase.german, phrase.english, phrase.category, phrase.response ?? ""]
-                .contains { $0.lowercased().contains(query) }
-        }
-    }
-
     var body: some View {
-        let visible = self.visible
+        let visible = phrases
         let grouped = Dictionary(grouping: visible, by: { $0.category })
 
         return List {
@@ -59,7 +49,6 @@ struct PhrasesListView: View {
                 )
             }
         }
-        .searchable(text: $search, prompt: "Search phrases")
         .navigationTitle("Phrases")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

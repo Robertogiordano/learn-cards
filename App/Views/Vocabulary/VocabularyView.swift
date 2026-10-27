@@ -16,30 +16,133 @@ enum VocabularySort: String, CaseIterable, Identifiable {
     }
 }
 
-/// The Vocabolario tab: words or phrases.
+/// The Vocabulary tab: words, phrases or verbs, with one search across all of them.
 struct VocabularyView: View {
     @AppStorage(SettingsKey.vocabularyKind) private var kindRaw = ImportKind.words.rawValue
+    @State private var search = ""
+
+    private var isSearching: Bool { !search.trimmed.isEmpty }
 
     var body: some View {
         NavigationStack {
             Group {
-                switch ImportKind(rawValue: kindRaw) ?? .words {
-                case .words: WordsListView()
-                case .phrases: PhrasesListView()
-                case .verbs: VerbsListView()
+                if isSearching {
+                    VocabularySearchResults(query: search)
+                } else {
+                    switch ImportKind(rawValue: kindRaw) ?? .words {
+                    case .words: WordsListView()
+                    case .phrases: PhrasesListView()
+                    case .verbs: VerbsListView()
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $search, prompt: "Search words, phrases and verbs")
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Picker("Show", selection: $kindRaw) {
-                        ForEach(ImportKind.allCases) { kind in
-                            Text(kind.title).tag(kind.rawValue)
+                    if isSearching {
+                        Text("Search").font(.headline)
+                    } else {
+                        Picker("Show", selection: $kindRaw) {
+                            ForEach(ImportKind.allCases) { kind in
+                                Text(kind.title).tag(kind.rawValue)
+                            }
                         }
+                        .pickerStyle(.segmented)
+                        .frame(width: 260)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 260)
                 }
+            }
+        }
+    }
+}
+
+/// Matches from words, phrases and verbs together, one section each.
+struct VocabularySearchResults: View {
+    let query: String
+
+    @Environment(\.modelContext) private var context
+    @Query(sort: \Word.createdAt, order: .reverse) private var words: [Word]
+    @Query(sort: \Phrase.createdAt, order: .reverse) private var phrases: [Phrase]
+    @Query(sort: \Verb.infinitive) private var verbs: [Verb]
+    @State private var editingWord: Word?
+    @State private var editingPhrase: Phrase?
+    @State private var editingVerb: Verb?
+
+    var body: some View {
+        let foundWords = words.filter { word in
+            VocabularySearch.matches(query, in: [word.german, word.entry.fullGerman, word.category] + word.english)
+        }
+        let foundPhrases = phrases.filter { phrase in
+            VocabularySearch.matches(query, in: [phrase.german, phrase.english, phrase.category,
+                                                 phrase.response ?? "", phrase.note ?? ""] + phrase.variants)
+        }
+        let foundVerbs = verbs.filter { verb in
+            VocabularySearch.matches(query, in: [verb.infinitive, verb.english, verb.group.label] + verb.forms)
+        }
+
+        return List {
+            if !foundWords.isEmpty {
+                Section("Words · \(foundWords.count)") {
+                    ForEach(foundWords) { word in
+                        Button { editingWord = word } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                WordRow(word: word)
+                                Text(word.category)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if !foundPhrases.isEmpty {
+                Section("Phrases · \(foundPhrases.count)") {
+                    ForEach(foundPhrases) { phrase in
+                        Button { editingPhrase = phrase } label: {
+                            PhraseSummary(entry: phrase.entry)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if !foundVerbs.isEmpty {
+                Section("Verbs · \(foundVerbs.count)") {
+                    ForEach(foundVerbs) { verb in
+                        Button { editingVerb = verb } label: {
+                            VerbSummary(verb: verb.entry)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .overlay {
+            if foundWords.isEmpty && foundPhrases.isEmpty && foundVerbs.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .sheet(item: $editingWord) { word in
+            WordEditView(title: "Edit", entry: word.entry, themes: words.categories) { updated in
+                word.update(from: updated)
+                try? context.save()
+            }
+        }
+        .sheet(item: $editingPhrase) { phrase in
+            PhraseEditView(title: "Edit phrase", entry: phrase.entry, categories: phrases.categories) { updated in
+                phrase.update(from: updated)
+                try? context.save()
+            }
+        }
+        .sheet(item: $editingVerb) { verb in
+            VerbEditView(title: "Edit verb", entry: verb.entry) { updated in
+                verb.update(from: updated)
+                try? context.save()
             }
         }
     }
@@ -48,20 +151,13 @@ struct VocabularyView: View {
 struct WordsListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Word.createdAt, order: .reverse) private var words: [Word]
-    @State private var search = ""
     @State private var sort = VocabularySort.recent
     @State private var editing: Word?
     @State private var isAdding = false
     @State private var themeFilter: String?
 
     private var visibleWords: [Word] {
-        let query = search.trimmed.lowercased()
-        let themed = themeFilter.map { theme in words.filter { $0.category == theme } } ?? words
-        let filtered = query.isEmpty ? themed : themed.filter { word in
-            word.german.lowercased().contains(query)
-                || word.category.lowercased().contains(query)
-                || word.english.contains { $0.lowercased().contains(query) }
-        }
+        let filtered = themeFilter.map { theme in words.filter { $0.category == theme } } ?? words
         switch sort {
         case .recent:
             return filtered
@@ -111,7 +207,6 @@ struct WordsListView: View {
                     )
                 }
             }
-            .searchable(text: $search, prompt: "Search in German or English")
             .navigationTitle("Vocabulary")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

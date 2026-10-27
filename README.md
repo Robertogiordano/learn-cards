@@ -51,6 +51,7 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi. L'interfacci
   - **Ask the coach** (su richiesta, OpenRouter): scrivi cosa vuoi oggi ("I have a test on separable verbs tomorrow"); il coach riceve un riassunto dei tuoi progressi ed errori e assembla la lezione **solo con il tuo materiale**, con un breve messaggio sul perché.
 - L'icona a forma di occhio in alto a destra di ogni card nasconde o mostra le emoji in tutti gli esercizi; la stessa scelta è in **Settings → Study**.
 - La pronuncia usa il riconoscimento vocale Apple in tedesco, on-device.
+- Nella scheda **Vocabulary** un solo campo di ricerca cerca insieme parole, frasi e verbi (tedesco, inglese, temi, varianti, forme coniugate; maiuscole, ä/ae/a e ß/ss non contano) e mostra i risultati divisi in **Words**, **Phrases** e **Verbs**.
 - Puoi esportare e importare il vocabolario in JSON, con merge.
 
 ## Setup
