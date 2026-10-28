@@ -28,6 +28,8 @@ enum SessionStep: Hashable {
     case number(NumberExercise)
     case phrase(UUID)
     case verb(UUID)
+    /// A compound game over one compound, or a match round over several.
+    case compound(CompoundStep)
 }
 
 /// How verb questions pick their kind of exercise.
@@ -84,6 +86,8 @@ final class StudySession: ObservableObject, Identifiable {
     @Published private(set) var numberExercise: NumberExercise?
     @Published private(set) var phraseQuestion: PhraseQuestion?
     @Published private(set) var verbQuestion: VerbQuestion?
+    /// The compound question being asked; it handles its own answers and feedback.
+    @Published private(set) var compoundRunner: CompoundRunner?
     @Published private(set) var feedback: AnswerFeedback?
     @Published private(set) var isFinished = false
     @Published private(set) var results: [Verdict: Int] = [:]
@@ -184,6 +188,7 @@ final class StudySession: ObservableObject, Identifiable {
             case .word(let item): return wordsByID[item.wordID] != nil
             case .phrase(let id): return phrasesByID[id] != nil
             case .verb(let id): return verbsByID[id] != nil
+            case .compound(let step): return step.ids.contains { wordsByID[$0]?.isCompound == true }
             case .number: return true
             }
         }
@@ -329,6 +334,25 @@ final class StudySession: ObservableObject, Identifiable {
         try? context.save()
     }
 
+    /// The runner already saved progress, mistakes and time: count the question here.
+    private func compoundAnswered(_ step: SessionStep, verdict: Verdict) {
+        if graded.insert(step).inserted {
+            results[verdict, default: 0] += 1
+            onStepGraded?(step)
+        }
+        if verdict == .wrong {
+            requeueMissed(step)
+        }
+    }
+
+    private func compoundOverridden(_ step: SessionStep, previous: Verdict) {
+        if previous == .wrong {
+            cancelRequeue(step)
+        }
+        results[previous, default: 0] -= 1
+        results[.correct, default: 0] += 1
+    }
+
     /// A missed step comes back a few questions later, at most `maxRepeats` times.
     private func requeueMissed(_ step: SessionStep) {
         guard repeats[step, default: 0] < Self.maxRepeats else { return }
@@ -444,6 +468,8 @@ final class StudySession: ObservableObject, Identifiable {
     }
 
     func advance() {
+        compoundRunner?.close()
+        compoundRunner = nil
         if let feedbackShownAt {
             ActivityStore.shared.addActive(seconds: min(Date().timeIntervalSince(feedbackShownAt), Self.maximumFeedbackSeconds))
             self.feedbackShownAt = nil
@@ -495,6 +521,18 @@ final class StudySession: ObservableObject, Identifiable {
             numberExercise = nil
             phraseQuestion = nil
             verbQuestion = makeVerbQuestion(for: verb, forced: kindOverrides[step].flatMap(VerbExerciseKind.init(rawValue:)))
+        case .compound(let compoundStep):
+            guard let runner = CompoundRunner.make(compoundStep, wordsByID: wordsByID, allWords: Array(wordsByID.values),
+                                                   context: context, recordsProgress: !graded.contains(step)) else {
+                advance()
+                return
+            }
+            exercise = nil
+            numberExercise = nil
+            phraseQuestion = nil
+            runner.onAnswered = { [weak self] verdict in self?.compoundAnswered(step, verdict: verdict) }
+            runner.onOverride = { [weak self] previous in self?.compoundOverridden(step, previous: previous) }
+            compoundRunner = runner
         }
         currentStep = step
         isInBonus = bonusSteps.contains(step)

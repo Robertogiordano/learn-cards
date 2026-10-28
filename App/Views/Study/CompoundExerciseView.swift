@@ -11,14 +11,14 @@ struct CompoundSessionView: View {
             Group {
                 if session.isFinished {
                     CompoundSummaryView(session: session) { dismiss() }
-                } else if let question = session.question {
+                } else if let runner = session.runner {
                     ScrollView {
-                        CompoundQuestionView(question: question, session: session)
+                        CompoundQuestionView(runner: runner, onContinue: session.advance)
                             .padding()
                     }
                     .scrollDismissesKeyboard(.interactively)
                     // A fresh view per question resets selections and typed text.
-                    .id(question.id)
+                    .id(ObjectIdentifier(runner))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -39,28 +39,27 @@ struct CompoundSessionView: View {
     }
 }
 
-private struct CompoundQuestionView: View {
-    let question: CompoundQuestion
-    @ObservedObject var session: CompoundSession
+/// One compound question with its feedback; used by the compound section, the bonus and lessons.
+struct CompoundQuestionView: View {
+    @ObservedObject var runner: CompoundRunner
+    let onContinue: () -> Void
 
     var body: some View {
         VStack(spacing: 24) {
-            switch question {
+            switch runner.question {
             case .match(let round):
-                MatchPairsView(round: round, session: session)
+                MatchPairsView(round: round, runner: runner)
             case .complete(let complete):
-                CompleteWordView(question: complete, isAnswered: session.feedback != nil, onChoose: session.choose)
+                CompleteWordView(question: complete, isAnswered: runner.feedback != nil, onChoose: runner.choose)
             case .build(let build):
-                BuildCompoundView(question: build, isAnswered: session.feedback != nil, onSubmit: session.build)
+                BuildCompoundView(question: build, isAnswered: runner.feedback != nil, onSubmit: runner.build)
             case .type(let entry):
-                TypeCompoundView(entry: entry, isAnswered: session.feedback != nil, onSubmit: session.type)
+                TypeCompoundView(entry: entry, isAnswered: runner.feedback != nil, onSubmit: runner.type)
             }
 
-            if let feedback = session.feedback {
-                CompoundFeedbackPanel(feedback: feedback, canOverride: {
-                    if case .match = question { return false }
-                    return true
-                }(), onOverride: session.overrideAsCorrect, onContinue: session.advance)
+            if let feedback = runner.feedback {
+                CompoundFeedbackPanel(feedback: feedback, canOverride: runner.canOverride,
+                                      onOverride: runner.overrideAsCorrect, onContinue: onContinue)
             }
         }
     }
@@ -88,7 +87,7 @@ private struct CompoundCard<Content: View>: View {
 
 private struct MatchPairsView: View {
     let round: CompoundMatchRound
-    @ObservedObject var session: CompoundSession
+    @ObservedObject var runner: CompoundRunner
 
     @State private var selectedLeft: String?
     @State private var wrongRight: String?
@@ -107,7 +106,7 @@ private struct MatchPairsView: View {
                         tile(word, state: leftState(word)) {
                             selectedLeft = selectedLeft == word ? nil : word
                         }
-                        .disabled(session.matched.contains(word) || session.feedback != nil)
+                        .disabled(runner.matched.contains(word) || runner.feedback != nil)
                     }
                 }
                 VStack(spacing: 10) {
@@ -115,7 +114,7 @@ private struct MatchPairsView: View {
                         tile(word, state: rightState(word)) {
                             pick(right: word)
                         }
-                        .disabled(isRightMatched(word) || session.feedback != nil)
+                        .disabled(isRightMatched(word) || runner.feedback != nil)
                     }
                 }
             }
@@ -152,7 +151,7 @@ private struct MatchPairsView: View {
     }
 
     private func leftState(_ word: String) -> TileState {
-        if session.matched.contains(word) { return .matched }
+        if runner.matched.contains(word) { return .matched }
         return selectedLeft == word ? .selected : .idle
     }
 
@@ -162,12 +161,12 @@ private struct MatchPairsView: View {
     }
 
     private func isRightMatched(_ word: String) -> Bool {
-        session.matched.contains { left in round.compound(left: left, right: word) != nil }
+        runner.matched.contains { left in round.compound(left: left, right: word) != nil }
     }
 
     private func pick(right word: String) {
         guard let left = selectedLeft else { return }
-        if session.matchPair(left: left, right: word) {
+        if runner.matchPair(left: left, right: word) {
             selectedLeft = nil
         } else {
             wrongRight = word
@@ -399,7 +398,7 @@ private struct CompoundFeedbackPanel: View {
             }
             .buttonStyle(.bordered)
             HStack {
-                if canOverride && feedback.verdict != .correct {
+                if canOverride {
                     Button("I was right", action: onOverride)
                 }
                 Spacer()

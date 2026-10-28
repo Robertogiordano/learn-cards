@@ -39,6 +39,16 @@ struct SessionView: View {
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .id(verb.id)
+                } else if let runner = session.compoundRunner {
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            BonusBanner(session: session)
+                            CompoundQuestionView(runner: runner, onContinue: session.advance)
+                        }
+                        .padding()
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .id(ObjectIdentifier(runner))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

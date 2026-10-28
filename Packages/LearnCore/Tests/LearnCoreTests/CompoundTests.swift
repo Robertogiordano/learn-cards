@@ -94,3 +94,36 @@ final class CompoundTests: XCTestCase {
         XCTAssertEqual(decoded.compoundStreaks, ["matchPairs": 2])
     }
 }
+
+final class CompoundSplitterTests: XCTestCase {
+    let vocabulary = ["Küche", "Tür", "Arbeit", "Zimmer", "schreiben", "Tisch", "Kind", "Haus", "Haustür",
+                      "Schlüssel", "Schule", "Tasche", "Küchentür"]
+
+    func testSplitsWithLinkingLetters() {
+        XCTAssertEqual(CompoundSplitter.suggest("Küchentür", vocabulary: vocabulary), ["Küche", "Tür"])
+        XCTAssertEqual(CompoundSplitter.suggest("Arbeitszimmer", vocabulary: vocabulary), ["Arbeit", "Zimmer"])
+        XCTAssertEqual(CompoundSplitter.suggest("Schreibtisch", vocabulary: vocabulary), ["schreiben", "Tisch"])
+        XCTAssertEqual(CompoundSplitter.suggest("Kinderzimmer", vocabulary: vocabulary), ["Kind", "Zimmer"])
+        XCTAssertEqual(CompoundSplitter.suggest("Schultasche", vocabulary: vocabulary), ["Schule", "Tasche"])
+    }
+
+    func testPrefersFewerAndLongerParts() {
+        XCTAssertEqual(CompoundSplitter.suggest("Haustürschlüssel", vocabulary: vocabulary), ["Haustür", "Schlüssel"])
+        XCTAssertEqual(CompoundSplitter.suggest("Kinderzimmertür", vocabulary: vocabulary), ["Kind", "Zimmer", "Tür"])
+    }
+
+    func testNoSplit() {
+        XCTAssertNil(CompoundSplitter.suggest("Fahrrad", vocabulary: vocabulary))
+        XCTAssertNil(CompoundSplitter.suggest("Tür", vocabulary: vocabulary))
+    }
+}
+
+final class CompoundSplitPromptTests: XCTestCase {
+    func testParse() throws {
+        XCTAssertEqual(try CompoundSplitPrompt.parse(#"{"parts": ["Küche", " Tür "]}"#), ["Küche", "Tür"])
+        XCTAssertEqual(try CompoundSplitPrompt.parse(#"{"parts": ["Tisch"]}"#), [])
+        XCTAssertEqual(try CompoundSplitPrompt.parse(#"Sure: ["Kind", "Zimmer"]"#), ["Kind", "Zimmer"])
+        XCTAssertThrowsError(try CompoundSplitPrompt.parse("no idea"))
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(CompoundSplitPrompt.responseSchema))
+    }
+}

@@ -136,6 +136,33 @@ final class LessonTests: XCTestCase {
         XCTAssertTrue(JSONSerialization.isValidJSONObject(CoachPrompt.responseSchema))
     }
 
+    func testCompoundsInLessonsAndCoach() throws {
+        let compounds = (0..<4).map { index in
+            LessonCandidate(item: LessonItem(domain: .compound, id: UUID(), reason: .practice),
+                            theme: VocabEntry.compoundCategory, isDue: true, isNew: false,
+                            recentErrors: index == 0 ? 2 : 0, mastery: 0.2)
+        }
+        var rng = SeededGenerator(state: 5)
+        let local = LessonPlanner.compose(candidates: compounds, budgetSeconds: 120, focusThemes: [],
+                                          numberLevel: nil, using: &rng)
+        XCTAssertEqual(local.count, 4)
+        XCTAssertEqual(local.first(where: { $0.id == compounds[0].item.id })?.reason, .error)
+        XCTAssertEqual(LessonItem(domain: .compound, reason: .practice).estimatedSeconds, 15)
+
+        let content = """
+        {"message": "Compounds today.", "blocks": [
+          {"type": "compounds", "groups": [], "areas": [], "focus": "all", "exercise": "typeCompound", "count": 2, "level": null},
+          {"type": "compounds", "groups": [], "areas": [], "focus": "all", "exercise": "matchPairs", "count": 2, "level": null}
+        ]}
+        """
+        let items = CoachResolver.resolve(try CoachPrompt.parse(content), candidates: compounds, using: &rng)
+        XCTAssertEqual(items.count, 4)
+        XCTAssertTrue(items.allSatisfy { $0.domain == .compound })
+        XCTAssertEqual(items.prefix(2).map(\.kind), ["typeCompound", "typeCompound"])
+        // Matching needs several compounds: a lesson item falls back to automatic.
+        XCTAssertEqual(items.suffix(2).map(\.kind), [nil, nil])
+    }
+
     func testBackupKeepsActivity() throws {
         var activity = ActivityStats()
         activity.add(seconds: 300, on: today, calendar: calendar)

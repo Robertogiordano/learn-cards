@@ -61,7 +61,7 @@ public struct CoachSummary: Codable, Sendable {
 /// The coach's answer: a short message and blocks of exercises chosen among the learner's data.
 public struct CoachPlan: Codable, Sendable {
     public struct Block: Codable, Sendable {
-        /// "words", "phrases", "verbs" or "numbers".
+        /// "words", "phrases", "verbs", "compounds" or "numbers".
         public var type: String
         /// Word themes, phrase categories or verb groups (labels as given); empty = any.
         public var groups: [String]
@@ -97,6 +97,8 @@ public enum CoachPrompt {
         let phraseKinds = PhraseExerciseKind.allCases.map(\.rawValue).joined(separator: ", ")
         let verbKinds = VerbExerciseKind.allCases.map(\.rawValue).joined(separator: ", ")
         let numberKinds = NumberExerciseKind.allCases.map(\.rawValue).joined(separator: ", ")
+        let compoundKinds = CompoundExerciseKind.allCases.filter { $0 != .matchPairs }.map(\.rawValue)
+            .joined(separator: ", ")
         return """
         You are a German teacher preparing today's lesson for an English-speaking learner who studies with \
         flashcards. You receive a JSON summary of the learner: daily goal in minutes, their request \
@@ -113,12 +115,13 @@ public enum CoachPrompt {
         "exercise": "...", "count": n, "level": n|null}]}
         - message: 2-3 sentences in English, warm and concrete: what we work on today and why \
         (mention the typical mistake if there is one).
-        - type: "words", "phrases", "verbs" or "numbers".
+        - type: "words", "phrases", "verbs", "compounds" (games joining the parts of compound \
+        words, from the "\(VocabEntry.compoundCategory)" theme) or "numbers".
         - groups: word themes, phrase categories or verb groups from the summary; [] for any.
         - areas: only for words: "translation", "article", "plural"; [] for any.
         - focus: "errors", "due", "new", "weak" or "all".
         - exercise: "auto", or for words one of: \(wordKinds); for phrases: \(phraseKinds); \
-        for verbs: \(verbKinds); for numbers: \(numberKinds).
+        for verbs: \(verbKinds); for compounds: \(compoundKinds); for numbers: \(numberKinds).
         - count: questions in the block (1-20).
         - level: only for numbers, 1-4.
         Use 2 to 6 blocks.
@@ -214,6 +217,7 @@ public enum CoachResolver {
         case "words": return .word
         case "phrases": return .phrase
         case "verbs": return .verb
+        case "compounds": return .compound
         default: return nil
         }
     }
@@ -228,6 +232,10 @@ public enum CoachResolver {
         case .phrase: return PhraseExerciseKind(rawValue: raw)?.rawValue
         case .verb: return VerbExerciseKind(rawValue: raw)?.rawValue
         case .number: return NumberExerciseKind(rawValue: raw)?.rawValue
+        case .compound:
+            // A lesson asks one compound at a time: matching needs several.
+            guard let kind = CompoundExerciseKind(rawValue: raw), kind != .matchPairs else { return nil }
+            return kind.rawValue
         }
     }
 }

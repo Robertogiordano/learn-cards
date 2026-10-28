@@ -24,6 +24,9 @@ struct PathView: View {
     private static let bonusPhrases = 2
     /// Verbs already seen, mixed into every bonus.
     private static let bonusVerbs = 2
+    /// Compounds in a bonus match round, or single compound questions when they cannot be matched.
+    private static let bonusCompoundPairs = 5
+    private static let bonusCompounds = 2
 
     var body: some View {
         NavigationStack {
@@ -63,10 +66,9 @@ struct PathView: View {
         let pathWords = words.map(\.pathWord)
         let now = Date()
         let lesson = PathPlanner.lesson(pathWords, now: now, newLimit: lessonNewWords)
-        let lessonBonus = PathPlanner.bonus(pathWords, now: now, limit: bonusSize, excluding: Set(lesson)).count
-            + Self.bonusNumbers + bonusPhraseIDs().count + bonusVerbIDs().count
-        let bonusOnly = PathPlanner.bonus(pathWords, now: now, limit: bonusSize).count + Self.bonusNumbers
-            + bonusPhraseIDs().count + bonusVerbIDs().count
+        let extras = Self.bonusNumbers + bonusPhraseIDs().count + bonusVerbIDs().count + bonusCompoundSteps().count
+        let lessonBonus = PathPlanner.bonus(pathWords, now: now, limit: bonusSize, excluding: Set(lesson)).count + extras
+        let bonusOnly = PathPlanner.bonus(pathWords, now: now, limit: bonusSize).count + extras
         let focus = PathPlanner.focusTheme(pathWords)
         let emojis = Dictionary(words.map { ($0.category, $0.emoji) }, uniquingKeysWith: { first, _ in first })
 
@@ -155,7 +157,9 @@ struct PathView: View {
         }
         Task { @MainActor in
             let allowSpeaking = speakingInMixed ? await SpeechRecognizer.requestPermissions() : false
-            let plan = DailyLessonBuilder.steps(for: lesson, allowSpeaking: allowSpeaking)
+            let levels = Dictionary(words.filter(\.isCompound).map { ($0.id, CompoundSession.adaptiveLevel(of: $0)) },
+                                    uniquingKeysWith: { first, _ in first })
+            let plan = DailyLessonBuilder.steps(for: lesson, allowSpeaking: allowSpeaking, compoundLevels: levels)
             guard !plan.steps.isEmpty else { return }
             let session = StudySession(steps: plan.steps, allWords: words, allPhrases: phrases, allVerbs: verbs,
                                        kindPolicy: .adaptive, kindOverrides: plan.overrides,
@@ -213,6 +217,22 @@ struct PathView: View {
         return ranked.prefix(Self.bonusVerbs).map(\.id)
     }
 
+    /// Compounds already seen for the bonus, weakest first: one match round when five can be
+    /// matched together, otherwise up to two single questions.
+    private func bonusCompoundSteps() -> [SessionStep] {
+        let seen = words.filter { $0.isCompound && (!$0.compoundStreaks.isEmpty || !$0.srs(for: .translation).isNew) }
+            .sorted { CompoundGame.mastery([$0.compoundStreaks]) < CompoundGame.mastery([$1.compoundStreaks]) }
+        if let round = CompoundSession.matchRounds(Array(seen.prefix(Self.bonusCompoundPairs))).rounds.first {
+            return [.compound(round)]
+        }
+        var rng = SystemRandomNumberGenerator()
+        return seen.prefix(Self.bonusCompounds).map { word in
+            var kind = CompoundGame.kind(level: CompoundSession.adaptiveLevel(of: word), canMatch: false, using: &rng)
+            if kind == .matchPairs { kind = .completeWord }
+            return .compound(CompoundStep(kind: kind, ids: [word.id]))
+        }
+    }
+
     /// Bonus words with a few number questions, at the level being trained, spread among them.
     private func bonusSteps(_ items: [StudyItem], allowSpeaking: Bool) -> [SessionStep] {
         let level = NumberLevel(rawValue: numbersLevelRaw) ?? .upTo20
@@ -220,6 +240,7 @@ struct PathView: View {
         let extras = NumberSteps.make(count: Self.bonusNumbers, level: level, kind: nil, allowSpeaking: allowSpeaking)
             + bonusPhraseIDs().map { SessionStep.phrase($0) }
             + bonusVerbIDs().map { SessionStep.verb($0) }
+            + bonusCompoundSteps()
         for extra in extras {
             steps.insert(extra, at: Int.random(in: 0...steps.count))
         }

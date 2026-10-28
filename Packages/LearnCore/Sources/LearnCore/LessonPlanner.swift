@@ -3,7 +3,7 @@ import Foundation
 /// One question of a planned lesson, stored so the lesson stays the same all day.
 public struct LessonItem: Codable, Hashable, Sendable {
     public enum Domain: String, Codable, CaseIterable, Sendable {
-        case word, phrase, verb, number
+        case word, phrase, verb, number, compound
     }
 
     public enum Reason: String, Codable, Sendable {
@@ -11,7 +11,7 @@ public struct LessonItem: Codable, Hashable, Sendable {
     }
 
     public var domain: Domain
-    /// Word, phrase or verb; nil for numbers.
+    /// Word (also for compounds), phrase or verb; nil for numbers.
     public var id: UUID?
     /// For words.
     public var area: StudyArea?
@@ -43,6 +43,7 @@ public struct LessonItem: Codable, Hashable, Sendable {
         case .phrase: return 25
         case .verb: return 20
         case .number: return 10
+        case .compound: return 15
         }
     }
 }

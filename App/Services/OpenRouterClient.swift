@@ -106,6 +106,17 @@ struct OpenRouterClient {
         return verbs
     }
 
+    /// The parts of a compound noun the vocabulary could not explain (text only).
+    func splitCompound(_ word: String) async throws -> [String] {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: CompoundSplitPrompt.system(),
+            instruction: CompoundSplitPrompt.userInstruction(for: word),
+            schemaName: "compound_parts",
+            schema: CompoundSplitPrompt.responseSchema
+        ))
+        return try CompoundSplitPrompt.parse(content)
+    }
+
     /// Today's lesson plan from the learner's summary (text only, no photo).
     func coachPlan(summary: CoachSummary) async throws -> CoachPlan {
         let content = try await extract(jpeg: nil, request: Request(

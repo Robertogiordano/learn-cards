@@ -27,7 +27,9 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi. L'interfacci
   - **Build from meaning**: dall'inglese, tocca le parti nell'ordine giusto tra 6–8 tasselli;
   - **Type the compound**: scrivi la parola con l'articolo (viene dall'ultima parte).
 
-  «Automatico» va da abbinare/completare a comporre e scrivere; le composte entrano comunque anche negli esercizi di traduzione, articolo e plurale.
+  «Automatico» va da abbinare/completare a comporre e scrivere; le composte entrano anche negli esercizi di traduzione, articolo e plurale, nel **Bonus** (un round di abbinamento con le composte più deboli, o due domande singole) e nella **lezione del giorno** (anche quella del coach, con il tipo «compounds»).
+
+  Nella scheda di una parola, la sezione **Parts** suggerisce le parole del vocabolario mentre scrivi (si scelgono da un elenco a tendina) e il pulsante **Suggest parts** fa l'associazione da solo: prima cerca la divisione tra le tue parole (gestendo le lettere di collegamento -s-, -n-, -er-… e radici come Schreib- da schreiben), poi, se non la trova, chiede a OpenRouter.
 - **Numeri** (scheda Study), su 4 livelli (0–20, 21–100, 101–1.000, fino a 1.000.000):
   - ascolta e scegli tra 4 opzioni ingannevoli (21 ↔ 12, 13 ↔ 30, ±1, ±10);
   - ascolta e scrivi le cifre (con riascolto lento);

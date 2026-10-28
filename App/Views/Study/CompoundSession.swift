@@ -41,45 +41,222 @@ struct CompoundFeedback {
     var solution: [String]
 }
 
-/// Drives one session of the compound words games: queue, grading, progress, time and mistakes.
+/// One compound question, wherever it is asked (its own section, the bonus, a lesson):
+/// answers, feedback, progress on the words, mistakes and active time.
+@MainActor
+final class CompoundRunner: ObservableObject {
+    let question: CompoundQuestion
+    @Published private(set) var feedback: CompoundFeedback?
+    /// First parts already connected in a match round.
+    @Published private(set) var matched: Set<String> = []
+
+    /// Called once, when the question is answered, with its verdict.
+    var onAnswered: ((Verdict) -> Void)?
+    /// Called when "I was right" turns the verdict into correct, with the previous verdict.
+    var onOverride: ((Verdict) -> Void)?
+
+    private let kind: CompoundExerciseKind
+    private let wordsByID: [UUID: Word]
+    private let context: ModelContext
+    /// Only the first attempt at a question moves the percentages.
+    private let recordsProgress: Bool
+    /// Compounds already graded in a match round.
+    private var roundGraded: Set<UUID> = []
+    private var roundMistakes = 0
+    private var shownAt = Date()
+    private var feedbackShownAt: Date?
+
+    private static let maximumAnswerSeconds: TimeInterval = 60
+    private static let maximumFeedbackSeconds: TimeInterval = 20
+
+    init(question: CompoundQuestion, kind: CompoundExerciseKind, wordsByID: [UUID: Word], context: ModelContext,
+         recordsProgress: Bool) {
+        self.question = question
+        self.kind = kind
+        self.wordsByID = wordsByID
+        self.context = context
+        self.recordsProgress = recordsProgress
+    }
+
+    /// Builds the question of a step; nil when its words are gone or no longer compounds.
+    static func make(_ step: CompoundStep, wordsByID: [UUID: Word], allWords: [Word], context: ModelContext,
+                     recordsProgress: Bool) -> CompoundRunner? {
+        var rng = SystemRandomNumberGenerator()
+        let entries = step.ids.compactMap { wordsByID[$0] }.filter(\.isCompound).map(\.entry)
+        guard let entry = entries.first else { return nil }
+        let compounds = allWords.filter(\.isCompound).map(\.entry)
+        let nouns = allWords.filter { !$0.isCompound && $0.partOfSpeech == .noun }.map(\.german)
+        let question: CompoundQuestion
+        switch step.kind {
+        case .matchPairs:
+            guard let round = CompoundGame.matchRound(entries, using: &rng) else { return nil }
+            question = .match(round)
+        case .completeWord:
+            question = .complete(CompoundGame.complete(entry, compounds: compounds, words: nouns, using: &rng))
+        case .buildFromMeaning:
+            question = .build(CompoundGame.build(entry, compounds: compounds, words: nouns, using: &rng))
+        case .typeCompound:
+            question = .type(entry)
+        }
+        return CompoundRunner(question: question, kind: step.kind, wordsByID: wordsByID, context: context,
+                              recordsProgress: recordsProgress)
+    }
+
+    // MARK: - Answers
+
+    /// Connects two tiles of the match round; returns whether they make a compound.
+    @discardableResult
+    func matchPair(left: String, right: String) -> Bool {
+        guard case .match(let round) = question, feedback == nil else { return false }
+        if let entry = round.compound(left: left, right: right) {
+            matched.insert(left)
+            if roundGraded.insert(entry.id).inserted {
+                record(.correct, id: entry.id)
+            }
+            if matched.count == round.compounds.count {
+                answer(roundMistakes == 0 ? .correct : .wrong, given: "", solution: round.compounds)
+            }
+            return true
+        }
+        roundMistakes += 1
+        if let intended = round.compound(left: left), roundGraded.insert(intended.id).inserted {
+            record(.wrong, id: intended.id)
+            logMistake(intended, given: "\(left) + \(right)")
+        }
+        return false
+    }
+
+    func choose(_ option: String) {
+        guard case .complete(let question) = question else { return }
+        let verdict: Verdict = PhraseChecker.key(option) == PhraseChecker.key(question.answer) ? .correct : .wrong
+        grade(verdict, entry: question.entry, given: option)
+    }
+
+    func build(_ chosen: [String]) {
+        guard case .build(let question) = question else { return }
+        grade(CompoundGame.checkBuild(chosen, entry: question.entry), entry: question.entry,
+              given: chosen.joined(separator: " + "))
+    }
+
+    func type(_ text: String) {
+        guard case .type(let entry) = question else { return }
+        grade(CompoundGame.checkTyped(text, entry: entry), entry: entry, given: text)
+    }
+
+    var canOverride: Bool {
+        if case .match = question { return false }
+        return (feedback?.verdict ?? .correct) != .correct
+    }
+
+    /// The learner says the answer was right (a synonym, a typo the checker did not forgive).
+    func overrideAsCorrect() {
+        guard canOverride, var feedback else { return }
+        let previous = feedback.verdict
+        if recordsProgress, let id = singleID, let word = wordsByID[id] {
+            var streaks = word.compoundStreaks
+            streaks[kind, default: 0] += 1
+            word.compoundStreaks = streaks
+            if previous == .wrong {
+                word.timesWrong = max(0, word.timesWrong - 1)
+                word.timesCorrect += 1
+            }
+            try? context.save()
+        }
+        feedback.verdict = .correct
+        self.feedback = feedback
+        onOverride?(previous)
+    }
+
+    /// Before moving on: reading the feedback counts as study time too.
+    func close() {
+        if let feedbackShownAt {
+            ActivityStore.shared.addActive(seconds: min(Date().timeIntervalSince(feedbackShownAt), Self.maximumFeedbackSeconds))
+            self.feedbackShownAt = nil
+        }
+    }
+
+    // MARK: - Private
+
+    private var singleID: UUID? {
+        switch question {
+        case .match: return nil
+        case .complete(let question): return question.entry.id
+        case .build(let question): return question.entry.id
+        case .type(let entry): return entry.id
+        }
+    }
+
+    private func grade(_ verdict: Verdict, entry: VocabEntry, given: String) {
+        guard feedback == nil else { return }
+        record(verdict, id: entry.id)
+        if verdict != .correct {
+            logMistake(entry, given: given)
+        }
+        answer(verdict, given: given, solution: [entry])
+    }
+
+    private func answer(_ verdict: Verdict, given: String, solution: [VocabEntry]) {
+        let now = Date()
+        ActivityStore.shared.addActive(seconds: min(now.timeIntervalSince(shownAt), Self.maximumAnswerSeconds))
+        feedbackShownAt = now
+        feedback = CompoundFeedback(verdict: verdict, given: given, solution: solution.map(Self.solution))
+        onAnswered?(verdict)
+    }
+
+    private func record(_ verdict: Verdict, id: UUID) {
+        guard recordsProgress, let word = wordsByID[id] else { return }
+        var streaks = word.compoundStreaks
+        switch verdict {
+        case .correct:
+            streaks[kind, default: 0] += 1
+            word.timesCorrect += 1
+        case .almost:
+            break
+        case .wrong:
+            streaks[kind] = 0
+            word.timesWrong += 1
+        }
+        word.compoundStreaks = streaks
+        try? context.save()
+    }
+
+    private func logMistake(_ entry: VocabEntry, given: String) {
+        ActivityStore.shared.log(ErrorRecord(date: .now, domain: .word, itemID: entry.id,
+                                             exercise: "compound.\(kind.rawValue)",
+                                             prompt: kind == .buildFromMeaning ? entry.englishDisplay : entry.partsDisplay,
+                                             given: given, expected: entry.withArticle,
+                                             theme: VocabEntry.compoundCategory))
+    }
+
+    static func solution(_ entry: VocabEntry) -> String {
+        "\(entry.partsDisplay) → \(entry.withArticle)"
+    }
+}
+
+/// A session of the compound words section: queue, retries and results; each question runs in a `CompoundRunner`.
 @MainActor
 final class CompoundSession: ObservableObject, Identifiable {
-    @Published private(set) var question: CompoundQuestion?
-    @Published private(set) var feedback: CompoundFeedback?
+    @Published private(set) var runner: CompoundRunner?
     @Published private(set) var isFinished = false
     @Published private(set) var results: [Verdict: Int] = [:]
-    /// First parts already connected in the current match round.
-    @Published private(set) var matched: Set<String> = []
 
     let total: Int
     var completed: Int { graded.count }
 
     private let context: ModelContext
+    private let allWords: [Word]
     private let wordsByID: [UUID: Word]
-    private let compounds: [VocabEntry]
-    /// Other words, as distractors.
-    private let nouns: [String]
     private var queue: [CompoundStep]
-    private var currentStep: CompoundStep?
     private var graded: Set<CompoundStep> = []
     private var repeats: [CompoundStep: Int] = [:]
-    /// Compounds already graded in the current match round (first attempt only).
-    private var roundGraded: Set<UUID> = []
-    private var roundMistakes = 0
-    private var shownAt = Date()
-    private var feedbackShownAt: Date?
-    private var rng = SystemRandomNumberGenerator()
 
     private static let maxRepeats = 2
     private static let repeatGap = 3
-    private static let maximumAnswerSeconds: TimeInterval = 60
-    private static let maximumFeedbackSeconds: TimeInterval = 20
 
     init(steps: [CompoundStep], allWords: [Word], context: ModelContext) {
         self.context = context
+        self.allWords = allWords
         wordsByID = Dictionary(allWords.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        compounds = allWords.filter(\.isCompound).map(\.entry)
-        nouns = allWords.filter { !$0.isCompound && $0.partOfSpeech == .noun }.map(\.german)
         queue = steps
         total = steps.count
         advance()
@@ -110,20 +287,25 @@ final class CompoundSession: ObservableObject, Identifiable {
         }
 
         // Group the compounds to match into rounds; those that do not fit play "complete".
-        var rounds: [CompoundStep] = []
-        var remaining = toMatch.map(\.entry)
-        while let round = CompoundGame.matchRound(remaining, using: &rng) {
-            let ids = round.compounds.map(\.id)
-            rounds.append(CompoundStep(kind: .matchPairs, ids: ids))
-            remaining.removeAll { ids.contains($0.id) }
-        }
-        let leftovers = remaining.map { CompoundStep(kind: .completeWord, ids: [$0.id]) }
-
-        var steps = single + leftovers
+        let (rounds, leftovers) = matchRounds(toMatch)
+        var steps = single + leftovers.map { CompoundStep(kind: .completeWord, ids: [$0.id]) }
         for round in rounds {
             steps.insert(round, at: Int.random(in: 0...steps.count, using: &rng))
         }
         return steps
+    }
+
+    /// Match rounds out of these compounds, and the ones that fit no round.
+    static func matchRounds(_ words: [Word]) -> (rounds: [CompoundStep], leftovers: [Word]) {
+        var rng = SystemRandomNumberGenerator()
+        var rounds: [CompoundStep] = []
+        var remaining = words
+        while let round = CompoundGame.matchRound(remaining.map(\.entry), using: &rng) {
+            let ids = round.compounds.map(\.id)
+            rounds.append(CompoundStep(kind: .matchPairs, ids: ids))
+            remaining.removeAll { ids.contains($0.id) }
+        }
+        return (rounds, remaining)
     }
 
     /// 0 until matching or completing is mastered, 1 until building is, then 2.
@@ -134,175 +316,37 @@ final class CompoundSession: ObservableObject, Identifiable {
         return (streaks[.buildFromMeaning] ?? 0) >= PathPlanner.masteryRepetitions ? 2 : 1
     }
 
-    // MARK: - Answers
-
-    /// Connects two tiles of the match round; returns whether they make a compound.
-    @discardableResult
-    func matchPair(left: String, right: String) -> Bool {
-        guard case .match(let round)? = question, feedback == nil else { return false }
-        if let entry = round.compound(left: left, right: right) {
-            matched.insert(left)
-            if roundGraded.insert(entry.id).inserted {
-                record(.correct, id: entry.id, kind: .matchPairs)
-            }
-            if matched.count == round.compounds.count {
-                finishMatchRound(round)
-            }
-            return true
-        }
-        roundMistakes += 1
-        if let intended = round.compound(left: left), roundGraded.insert(intended.id).inserted {
-            record(.wrong, id: intended.id, kind: .matchPairs)
-            logMistake(intended, kind: .matchPairs, given: "\(left) + \(right)")
-        }
-        return false
-    }
-
-    func choose(_ option: String) {
-        guard case .complete(let question)? = question else { return }
-        let verdict: Verdict = PhraseChecker.key(option) == PhraseChecker.key(question.answer) ? .correct : .wrong
-        grade(verdict, entry: question.entry, kind: .completeWord, given: option)
-    }
-
-    func build(_ chosen: [String]) {
-        guard case .build(let question)? = question else { return }
-        grade(CompoundGame.checkBuild(chosen, entry: question.entry), entry: question.entry, kind: .buildFromMeaning,
-              given: chosen.joined(separator: " + "))
-    }
-
-    func type(_ text: String) {
-        guard case .type(let entry)? = question else { return }
-        grade(CompoundGame.checkTyped(text, entry: entry), entry: entry, kind: .typeCompound, given: text)
-    }
-
-    /// The learner says the answer was right (a synonym, a typo the checker did not forgive).
-    func overrideAsCorrect() {
-        guard var feedback, feedback.verdict != .correct, let step = currentStep, let id = step.ids.first,
-              step.kind != .matchPairs else { return }
-        if feedback.verdict == .wrong, let index = queue.firstIndex(of: step) {
-            queue.remove(at: index)
-            repeats[step, default: 1] -= 1
-        }
-        if let word = wordsByID[id] {
-            var streaks = word.compoundStreaks
-            streaks[step.kind, default: 0] += 1
-            word.compoundStreaks = streaks
-            try? context.save()
-        }
-        results[feedback.verdict, default: 0] -= 1
-        results[.correct, default: 0] += 1
-        feedback.verdict = .correct
-        self.feedback = feedback
-    }
-
     func advance() {
-        if let feedbackShownAt {
-            ActivityStore.shared.addActive(seconds: min(Date().timeIntervalSince(feedbackShownAt), Self.maximumFeedbackSeconds))
-        }
-        feedback = nil
-        feedbackShownAt = nil
-        matched = []
-        roundGraded = []
-        roundMistakes = 0
+        runner?.close()
         while !queue.isEmpty {
             let step = queue.removeFirst()
-            guard let next = makeQuestion(for: step) else { continue }
-            currentStep = step
-            question = next
-            shownAt = Date()
+            guard let next = CompoundRunner.make(step, wordsByID: wordsByID, allWords: allWords, context: context,
+                                                 recordsProgress: !graded.contains(step)) else { continue }
+            next.onAnswered = { [weak self] verdict in self?.answered(step, verdict: verdict) }
+            next.onOverride = { [weak self] previous in self?.overridden(step, previous: previous) }
+            runner = next
             return
         }
-        currentStep = nil
-        question = nil
+        runner = nil
         isFinished = true
     }
 
-    // MARK: - Private
-
-    private func makeQuestion(for step: CompoundStep) -> CompoundQuestion? {
-        let entries = step.ids.compactMap { wordsByID[$0] }.filter(\.isCompound).map(\.entry)
-        guard let entry = entries.first else { return nil }
-        switch step.kind {
-        case .matchPairs:
-            return CompoundGame.matchRound(entries, using: &rng).map(CompoundQuestion.match)
-        case .completeWord:
-            return .complete(CompoundGame.complete(entry, compounds: compounds, words: nouns, using: &rng))
-        case .buildFromMeaning:
-            return .build(CompoundGame.build(entry, compounds: compounds, words: nouns, using: &rng))
-        case .typeCompound:
-            return .type(entry)
-        }
-    }
-
-    private func grade(_ verdict: Verdict, entry: VocabEntry, kind: CompoundExerciseKind, given: String) {
-        guard let step = currentStep, feedback == nil else { return }
-        addAnswerTime()
-        if !graded.contains(step) {
-            graded.insert(step)
-            results[verdict, default: 0] += 1
-            record(verdict, id: entry.id, kind: kind)
-        }
-        if verdict != .correct {
-            logMistake(entry, kind: kind, given: given)
-        }
-        if verdict == .wrong {
-            requeue(step)
-        }
-        show(CompoundFeedback(verdict: verdict, given: given, solution: [Self.solution(entry)]))
-    }
-
-    private func finishMatchRound(_ round: CompoundMatchRound) {
-        guard let step = currentStep else { return }
-        addAnswerTime()
-        let verdict: Verdict = roundMistakes == 0 ? .correct : .wrong
-        if !graded.contains(step) {
-            graded.insert(step)
+    private func answered(_ step: CompoundStep, verdict: Verdict) {
+        if graded.insert(step).inserted {
             results[verdict, default: 0] += 1
         }
-        show(CompoundFeedback(verdict: verdict, given: "", solution: round.compounds.map(Self.solution)))
-    }
-
-    private func show(_ feedback: CompoundFeedback) {
-        self.feedback = feedback
-        feedbackShownAt = Date()
-    }
-
-    private func record(_ verdict: Verdict, id: UUID, kind: CompoundExerciseKind) {
-        guard let word = wordsByID[id] else { return }
-        var streaks = word.compoundStreaks
-        switch verdict {
-        case .correct:
-            streaks[kind, default: 0] += 1
-            word.timesCorrect += 1
-        case .almost:
-            break
-        case .wrong:
-            streaks[kind] = 0
-            word.timesWrong += 1
+        if verdict == .wrong, repeats[step, default: 0] < Self.maxRepeats {
+            repeats[step, default: 0] += 1
+            queue.insert(step, at: min(Self.repeatGap, queue.count))
         }
-        word.compoundStreaks = streaks
-        try? context.save()
     }
 
-    private func requeue(_ step: CompoundStep) {
-        guard repeats[step, default: 0] < Self.maxRepeats else { return }
-        repeats[step, default: 0] += 1
-        queue.insert(step, at: min(Self.repeatGap, queue.count))
-    }
-
-    private func addAnswerTime() {
-        ActivityStore.shared.addActive(seconds: min(Date().timeIntervalSince(shownAt), Self.maximumAnswerSeconds))
-    }
-
-    private func logMistake(_ entry: VocabEntry, kind: CompoundExerciseKind, given: String) {
-        ActivityStore.shared.log(ErrorRecord(date: .now, domain: .word, itemID: entry.id,
-                                             exercise: "compound.\(kind.rawValue)",
-                                             prompt: kind == .buildFromMeaning ? entry.englishDisplay : entry.partsDisplay,
-                                             given: given, expected: entry.withArticle,
-                                             theme: VocabEntry.compoundCategory))
-    }
-
-    static func solution(_ entry: VocabEntry) -> String {
-        "\(entry.partsDisplay) → \(entry.withArticle)"
+    private func overridden(_ step: CompoundStep, previous: Verdict) {
+        if previous == .wrong, let index = queue.firstIndex(of: step) {
+            queue.remove(at: index)
+            repeats[step, default: 1] -= 1
+        }
+        results[previous, default: 0] -= 1
+        results[.correct, default: 0] += 1
     }
 }

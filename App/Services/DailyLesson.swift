@@ -102,6 +102,16 @@ enum DailyLessonBuilder {
                 mastery: PhraseExercises.mastery([phrase.progressInput])
             ))
         }
+        for word in words where word.isCompound {
+            let streaks = word.compoundStreaks
+            let state = word.srs(for: .translation)
+            result.append(LessonCandidate(
+                item: LessonItem(domain: .compound, id: word.id, reason: .practice),
+                theme: VocabEntry.compoundCategory, isDue: state.isDue(at: .now), isNew: streaks.isEmpty,
+                recentErrors: errorCount["\(word.id.uuidString)|compound"] ?? 0,
+                mastery: CompoundGame.mastery([streaks])
+            ))
+        }
         for verb in verbs {
             result.append(LessonCandidate(
                 item: LessonItem(domain: .verb, id: verb.id, reason: .practice),
@@ -191,7 +201,7 @@ enum DailyLessonBuilder {
     }
 
     /// Session steps for the lesson's remaining items, with forced kinds and where each step comes from.
-    static func steps(for lesson: DailyLesson, allowSpeaking: Bool)
+    static func steps(for lesson: DailyLesson, allowSpeaking: Bool, compoundLevels: [UUID: Int] = [:])
         -> (steps: [SessionStep], overrides: [SessionStep: String], indexByStep: [SessionStep: Int]) {
         var steps: [SessionStep] = []
         var overrides: [SessionStep: String] = [:]
@@ -212,6 +222,13 @@ enum DailyLessonBuilder {
             case .verb:
                 guard let id = item.id else { continue }
                 step = .verb(id)
+            case .compound:
+                guard let id = item.id else { continue }
+                // One compound at a time: matching needs several, so it becomes completing.
+                var kind = item.kind.flatMap(CompoundExerciseKind.init(rawValue:))
+                    ?? CompoundGame.kind(level: compoundLevels[id] ?? 0, canMatch: false, using: &rng)
+                if kind == .matchPairs { kind = .completeWord }
+                step = .compound(CompoundStep(kind: kind, ids: [id]))
             case .number:
                 let level = NumberLevel(rawValue: item.numberLevel ?? 1) ?? .upTo20
                 let forced = item.kind.flatMap(NumberExerciseKind.init(rawValue:))
@@ -222,7 +239,7 @@ enum DailyLessonBuilder {
             guard indexByStep[step] == nil else { continue }
             steps.append(step)
             indexByStep[step] = index
-            if let kind = item.kind, item.domain != .number {
+            if let kind = item.kind, item.domain != .number, item.domain != .compound {
                 overrides[step] = kind
             }
         }
