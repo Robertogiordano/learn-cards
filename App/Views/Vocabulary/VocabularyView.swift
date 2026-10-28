@@ -71,7 +71,8 @@ struct VocabularySearchResults: View {
 
     var body: some View {
         let foundWords = words.filter { word in
-            VocabularySearch.matches(query, in: [word.german, word.entry.fullGerman, word.category] + word.english)
+            VocabularySearch.matches(query, in: [word.german, word.entry.fullGerman, word.category]
+                                     + word.english + word.compoundParts)
         }
         let foundPhrases = phrases.filter { phrase in
             VocabularySearch.matches(query, in: [phrase.german, phrase.english, phrase.category,
@@ -271,6 +272,11 @@ struct WordRow: View {
                 Text(word.english.joined(separator: ", "))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if word.isCompound {
+                    Label(word.compoundParts.joined(separator: " + "), systemImage: "puzzlepiece")
+                        .font(.caption)
+                        .foregroundStyle(Color.compounds)
+                }
             }
             Spacer()
             if word.isDueAnywhere {

@@ -12,6 +12,7 @@ struct WordEditView: View {
     @State private var draft: VocabEntry
     @State private var englishText: String
     @State private var pluralText: String
+    @State private var partsText: String
 
     init(title: String, entry: VocabEntry, themes: [String] = [], onSave: @escaping (VocabEntry) -> Void) {
         self.title = title
@@ -20,6 +21,7 @@ struct WordEditView: View {
         _draft = State(initialValue: entry)
         _englishText = State(initialValue: entry.english.joined(separator: " / "))
         _pluralText = State(initialValue: entry.plural ?? "")
+        _partsText = State(initialValue: entry.parts.joined(separator: " + "))
     }
 
     private var englishList: [String] {
@@ -44,6 +46,16 @@ struct WordEditView: View {
                     if draft.article != nil {
                         TextField("Plural, without article", text: $pluralText)
                             .autocorrectionDisabled()
+                    }
+                }
+                if draft.article != nil {
+                    Section {
+                        TextField("Küche + Tür", text: $partsText)
+                            .autocorrectionDisabled()
+                    } header: {
+                        Text("Parts")
+                    } footer: {
+                        Text("For a compound noun, the words it is made of, joined with +. It then plays in Compound words.")
                     }
                 }
                 Section {
@@ -98,8 +110,12 @@ struct WordEditView: View {
         entry.plural = entry.article == nil || plural.isEmpty ? nil : plural
         if entry.article != nil { entry.partOfSpeech = .noun }
         entry.emoji = entry.emoji.trimmed.first.map(String.init) ?? "📝"
+        let parts = partsText.split(separator: "+").map { String($0).trimmed }.filter { !$0.isEmpty }
+        entry.parts = entry.article != nil && parts.count >= 2 ? parts : []
         let category = entry.category.trimmed
-        entry.category = category.isEmpty ? VocabEntry.defaultCategory : category
+        entry.category = category.isEmpty
+            ? (entry.isCompound ? VocabEntry.compoundCategory : VocabEntry.defaultCategory)
+            : category
         onSave(entry)
         dismiss()
     }

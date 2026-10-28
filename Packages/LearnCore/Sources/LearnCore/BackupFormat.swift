@@ -24,6 +24,10 @@ public struct BackupWord: Codable, Hashable, Sendable {
     public var kindStreaks: [String: Int]
     public var timesCorrect: Int
     public var timesWrong: Int
+    /// Parts of a compound noun; empty for other words and in older backups.
+    public var parts: [String]
+    /// Right answers in a row per compound game kind (`CompoundExerciseKind.rawValue`).
+    public var compoundStreaks: [String: Int]
 
     public init(
         entry: VocabEntry,
@@ -35,7 +39,8 @@ public struct BackupWord: Codable, Hashable, Sendable {
         streaks: [StudyArea: Int] = [:],
         kindStreaks: [StudyArea: [ExerciseKind: Int]] = [:],
         timesCorrect: Int = 0,
-        timesWrong: Int = 0
+        timesWrong: Int = 0,
+        compoundStreaks: [String: Int] = [:]
     ) {
         id = entry.id
         german = entry.german
@@ -60,11 +65,14 @@ public struct BackupWord: Codable, Hashable, Sendable {
         self.kindStreaks = flat
         self.timesCorrect = timesCorrect
         self.timesWrong = timesWrong
+        parts = entry.parts
+        self.compoundStreaks = compoundStreaks
     }
 
     enum CodingKeys: String, CodingKey {
         case id, german, article, plural, english, partOfSpeech, emoji, category
         case createdAt, updatedAt, srs, articleSrs, pluralSrs, streaks, kindStreaks, timesCorrect, timesWrong
+        case parts, compoundStreaks
     }
 
     /// Fields added in schema v2 are optional so v1 backups still load.
@@ -87,11 +95,13 @@ public struct BackupWord: Codable, Hashable, Sendable {
         kindStreaks = try container.decodeIfPresent([String: Int].self, forKey: .kindStreaks) ?? [:]
         timesCorrect = try container.decodeIfPresent(Int.self, forKey: .timesCorrect) ?? 0
         timesWrong = try container.decodeIfPresent(Int.self, forKey: .timesWrong) ?? 0
+        parts = try container.decodeIfPresent([String].self, forKey: .parts) ?? []
+        compoundStreaks = try container.decodeIfPresent([String: Int].self, forKey: .compoundStreaks) ?? [:]
     }
 
     public var entry: VocabEntry {
         VocabEntry(id: id, german: german, article: article, plural: plural, english: english,
-                   partOfSpeech: partOfSpeech, emoji: emoji, category: category)
+                   partOfSpeech: partOfSpeech, emoji: emoji, category: category, parts: parts)
     }
 
     public var dedupeKey: String { VocabEntry.dedupeKey(german: german, article: article) }

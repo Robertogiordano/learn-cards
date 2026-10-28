@@ -37,6 +37,8 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
     public static let defaultCategory = "Misc"
     /// The default theme before the app switched to English, renamed on first launch.
     public static let legacyDefaultCategory = "Varie"
+    /// Theme of compound nouns (Küche + Tür → Küchentür).
+    public static let compoundCategory = "Compound words"
 
     public var id: UUID
     /// Base form without article: singular noun, infinitive verb, ...
@@ -48,8 +50,10 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
     public var english: [String]
     public var partOfSpeech: PartOfSpeech
     public var emoji: String
-    /// Theme used to group words and to pick what to study (Cibo, Casa, ...).
+    /// Theme used to group words and to pick what to study (Food, Home, ...).
     public var category: String
+    /// For compound nouns, the base words they are made of ("Küche", "Tür"); empty otherwise.
+    public var parts: [String]
 
     public init(
         id: UUID = UUID(),
@@ -59,7 +63,8 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
         english: [String],
         partOfSpeech: PartOfSpeech = .other,
         emoji: String = "📝",
-        category: String = VocabEntry.defaultCategory
+        category: String = VocabEntry.defaultCategory,
+        parts: [String] = []
     ) {
         self.id = id
         self.german = german
@@ -69,9 +74,33 @@ public struct VocabEntry: Codable, Hashable, Identifiable, Sendable {
         self.partOfSpeech = partOfSpeech
         self.emoji = emoji
         self.category = category
+        self.parts = parts
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, german, article, plural, english, partOfSpeech, emoji, category, parts
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        german = try container.decode(String.self, forKey: .german)
+        article = try container.decodeIfPresent(Article.self, forKey: .article)
+        plural = try container.decodeIfPresent(String.self, forKey: .plural)
+        english = try container.decode([String].self, forKey: .english)
+        partOfSpeech = try container.decode(PartOfSpeech.self, forKey: .partOfSpeech)
+        emoji = try container.decode(String.self, forKey: .emoji)
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? Self.defaultCategory
+        parts = try container.decodeIfPresent([String].self, forKey: .parts) ?? []
     }
 
     public var hasArticle: Bool { article != nil }
+
+    /// Made of two or more words.
+    public var isCompound: Bool { parts.count >= 2 }
+
+    /// "Küche + Tür".
+    public var partsDisplay: String { parts.joined(separator: " + ") }
 
     public var hasPlural: Bool {
         !(plural ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

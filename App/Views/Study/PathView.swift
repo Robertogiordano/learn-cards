@@ -96,7 +96,7 @@ struct PathView: View {
                 Text("The bonus mixes everything you have already seen, across all themes and exercises: words due for review first, then the ones you miss most.")
             }
 
-            Section("Numbers, phrases and verbs") {
+            Section("More practice") {
                 NavigationLink {
                     NumbersView()
                 } label: {
@@ -111,6 +111,11 @@ struct PathView: View {
                     VerbsView()
                 } label: {
                     VerbsRow()
+                }
+                NavigationLink {
+                    CompoundsView()
+                } label: {
+                    CompoundsRow()
                 }
             }
 

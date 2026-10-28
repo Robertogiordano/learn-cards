@@ -38,6 +38,12 @@ struct ReviewExtractedView: View {
 
     private var selectedCount: Int { items.filter(\.isSelected).count }
 
+    /// German words the parts of a compound can link to: the vocabulary plus the selected words of this batch.
+    private var linkableKeys: Set<String> {
+        Set(existingWords.map { PhraseChecker.key($0.german) }
+            + items.filter(\.isSelected).map { PhraseChecker.key($0.entry.german) })
+    }
+
     /// Ids of the words the set will hold: existing words for duplicates, the new word
     /// for selected ones; new words left unselected are not saved, so they stay out.
     private var setWordIDs: [UUID] {
@@ -95,7 +101,7 @@ struct ReviewExtractedView: View {
                 Section {
                     EmptyView()
                 } footer: {
-                    Text("Tap the pencil to fix a word. Words already in your vocabulary are deselected: if you select them, they update the existing word without losing progress.")
+                    Text("Tap the pencil to fix a word. Words already in your vocabulary are deselected: if you select them, they update the existing word without losing progress. Compound words show their parts: linked when the part is in your vocabulary or selected here.")
                 }
             }
             .navigationTitle(items.count == 1 ? "1 word found" : "\(items.count) words found")
@@ -162,6 +168,20 @@ struct ReviewExtractedView: View {
                 Text(entry.englishDisplay)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if entry.isCompound {
+                    let known = linkableKeys
+                    HStack(spacing: 4) {
+                        ForEach(Array(entry.parts.enumerated()), id: \.offset) { index, part in
+                            if index > 0 { Text("+").foregroundStyle(.secondary) }
+                            let isKnown = known.contains(PhraseChecker.key(part))
+                            Label(part, systemImage: isKnown ? "link" : "exclamationmark.circle")
+                                .labelStyle(.titleAndIcon)
+                                .foregroundStyle(isKnown ? Color.compounds : Color.orange)
+                        }
+                    }
+                    .font(.caption)
+                    .accessibilityLabel("Parts: \(entry.partsDisplay)")
+                }
                 if isDuplicate {
                     Text("Already in your vocabulary")
                         .font(.caption)

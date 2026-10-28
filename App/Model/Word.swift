@@ -48,6 +48,10 @@ final class Word {
     /// Right answers in a row per area and kind of exercise, as JSON {"article.multipleChoice": 2}:
     /// the path's percentages. Empty for words never practised that way.
     var kindStreaksJSON: String = ""
+    /// Parts of a compound noun ("Küche", "Tür"); empty for other words.
+    var compoundParts: [String] = []
+    /// Right answers in a row per compound game, as JSON {"matchPairs": 2}.
+    var compoundStreaksJSON: String = ""
 
     var timesCorrect: Int
     var timesWrong: Int
@@ -61,6 +65,7 @@ final class Word {
         partOfSpeechRaw = entry.partOfSpeech.rawValue
         emoji = entry.emoji
         category = entry.category
+        compoundParts = entry.parts
         createdAt = now
         updatedAt = now
         let fresh = SRSState.new(now: now)
@@ -98,6 +103,8 @@ final class Word {
         setSRS(backup.articleSrs, for: .article)
         setSRS(backup.pluralSrs, for: .plural)
         applyStreaks(from: backup)
+        compoundParts = backup.parts
+        compoundStreaks = Self.compoundStreaks(from: backup.compoundStreaks)
     }
 
     var article: Article? {
@@ -112,10 +119,33 @@ final class Word {
 
     var entry: VocabEntry {
         VocabEntry(id: id, german: german, article: article, plural: plural, english: english,
-                   partOfSpeech: partOfSpeech, emoji: emoji, category: category)
+                   partOfSpeech: partOfSpeech, emoji: emoji, category: category, parts: compoundParts)
     }
 
     var dedupeKey: String { entry.dedupeKey }
+
+    var isCompound: Bool { compoundParts.count >= 2 }
+
+    var compoundStreaks: [CompoundExerciseKind: Int] {
+        get {
+            guard let data = compoundStreaksJSON.data(using: .utf8),
+                  let flat = try? JSONDecoder().decode([String: Int].self, from: data) else { return [:] }
+            return Self.compoundStreaks(from: flat)
+        }
+        set {
+            let flat = Dictionary(uniqueKeysWithValues: newValue.map { ($0.key.rawValue, $0.value) })
+            let data = (try? JSONEncoder().encode(flat)) ?? Data()
+            compoundStreaksJSON = String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    private static func compoundStreaks(from flat: [String: Int]) -> [CompoundExerciseKind: Int] {
+        var result: [CompoundExerciseKind: Int] = [:]
+        for (key, value) in flat {
+            if let kind = CompoundExerciseKind(rawValue: key) { result[kind] = value }
+        }
+        return result
+    }
 
     func srs(for area: StudyArea) -> SRSState {
         switch area {
@@ -243,7 +273,8 @@ final class Word {
         BackupWord(entry: entry, createdAt: createdAt, updatedAt: updatedAt, srs: srs(for: .translation),
                    articleSrs: srs(for: .article), pluralSrs: srs(for: .plural),
                    streaks: trackedStreaks, kindStreaks: kindStreaks,
-                   timesCorrect: timesCorrect, timesWrong: timesWrong)
+                   timesCorrect: timesCorrect, timesWrong: timesWrong,
+                   compoundStreaks: Dictionary(uniqueKeysWithValues: compoundStreaks.map { ($0.key.rawValue, $0.value) }))
     }
 
     /// Only streaks actually recorded; untracked ones stay out of the backup.
@@ -284,6 +315,7 @@ final class Word {
         partOfSpeech = entry.partOfSpeech
         emoji = entry.emoji
         category = entry.category
+        compoundParts = entry.parts
         updatedAt = .now
     }
 
@@ -298,6 +330,7 @@ final class Word {
         applyStreaks(from: backup)
         timesCorrect = backup.timesCorrect
         timesWrong = backup.timesWrong
+        compoundStreaks = Self.compoundStreaks(from: backup.compoundStreaks)
     }
 }
 

@@ -88,6 +88,10 @@ public enum ExtractionParser {
             category = VocabEntry.defaultCategory
         }
 
+        var parts = raw.parts.map { clean($0) }.filter { !$0.isEmpty }
+        if parts.count < 2 || partOfSpeech != .noun { parts = [] }
+        if !parts.isEmpty { category = VocabEntry.compoundCategory }
+
         return VocabEntry(
             german: german,
             article: article,
@@ -95,7 +99,8 @@ public enum ExtractionParser {
             english: english,
             partOfSpeech: partOfSpeech,
             emoji: emoji,
-            category: category
+            category: category,
+            parts: parts
         )
     }
 
@@ -116,9 +121,10 @@ private struct RawWord: Decodable {
     let partOfSpeech: String?
     let emoji: String?
     let category: String?
+    let parts: [String]
 
     enum CodingKeys: String, CodingKey {
-        case german, article, plural, english, partOfSpeech, emoji, category
+        case german, article, plural, english, partOfSpeech, emoji, category, parts
     }
 
     init(from decoder: Decoder) throws {
@@ -129,6 +135,7 @@ private struct RawWord: Decodable {
         partOfSpeech = (try? container.decodeIfPresent(String.self, forKey: .partOfSpeech)) ?? nil
         emoji = (try? container.decodeIfPresent(String.self, forKey: .emoji)) ?? nil
         category = (try? container.decodeIfPresent(String.self, forKey: .category)) ?? nil
+        parts = ((try? container.decodeIfPresent([String].self, forKey: .parts)) ?? nil) ?? []
         if let list = try? container.decode([String].self, forKey: .english) {
             english = list
         } else if let single = try? container.decode(String.self, forKey: .english) {

@@ -291,6 +291,7 @@ struct ProgressScreen: View {
         case "number": return "Numbers · " + (NumberExerciseKind(rawValue: parts[1])?.title ?? parts[1])
         case "phrase": return "Phrases · " + (PhraseExerciseKind(rawValue: parts[1])?.title ?? parts[1])
         case "verb": return "Verbs · " + (VerbExerciseKind(rawValue: parts[1])?.title ?? parts[1])
+        case "compound": return "Compounds · " + (CompoundExerciseKind(rawValue: parts[1])?.title ?? parts[1])
         default:
             let area = StudyArea(rawValue: parts[0])
             let mode = StudyMode(rawValue: parts[1])

@@ -21,6 +21,13 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi. L'interfacci
   - **Word sets**: un pulsante crea un set casuale di 10, 20 o 30 parole, pescate da tutto il vocabolario preferendo quelle nuove o poco sapute. Il set poi resta fisso e si allena come un tema (aree, esercizi, percentuali, stelle); i set si possono rinominare o eliminare e sono inclusi nel backup.
     Un set si può creare anche nella revisione di un import di **Words** («Also create a word set»): entrano tutte le parole estratte (i doppioni con i loro progressi), con l'icona a pila se ne esclude qualcuna; nel vocabolario si salvano comunque solo le parole selezionate.
   - Ogni sessione (parole, frasi, verbi) prende prima i ripassi in scadenza, poi al massimo 4 novità, poi gli elementi più deboli nell'esercizio scelto, a rotazione: quelli già al 100% in quell'esercizio tornano solo quando non c'è altro. Una risposta sbagliata ritorna qualche domanda dopo, al massimo due volte per sessione.
+- **Compound words** (scheda Study → More practice): le parole composte (Küche + Tür → die Küchentür) sono normali parole del vocabolario, nel tema "Compound words", che conoscono le loro parti. Nell'import il modello scompone i sostantivi composti, **risolve gli esercizi di abbinamento** (parola + parola, colonne da collegare) e aggiunge anche le parti come parole; nella revisione ogni parte mostra se è collegata (nel vocabolario o selezionata). Le parti si modificano anche a mano dalla scheda della parola. Giochi, ognuno con la sua percentuale:
+  - **Match the pairs**: fino a 5 composte per round, prime parti a sinistra e seconde a destra da collegare;
+  - **Complete the word**: «Küche + ___», 4 opzioni;
+  - **Build from meaning**: dall'inglese, tocca le parti nell'ordine giusto tra 6–8 tasselli;
+  - **Type the compound**: scrivi la parola con l'articolo (viene dall'ultima parte).
+
+  «Automatico» va da abbinare/completare a comporre e scrivere; le composte entrano comunque anche negli esercizi di traduzione, articolo e plurale.
 - **Numeri** (scheda Study), su 4 livelli (0–20, 21–100, 101–1.000, fino a 1.000.000):
   - ascolta e scegli tra 4 opzioni ingannevoli (21 ↔ 12, 13 ↔ 30, ±1, ±10);
   - ascolta e scrivi le cifre (con riascolto lento);

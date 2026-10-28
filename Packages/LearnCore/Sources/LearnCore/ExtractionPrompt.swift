@@ -30,7 +30,14 @@ public enum ExtractionPrompt {
         capitalized (for example Food, Home, Work, Travel, Family, Body, Free time). \
         \(themes) Reuse one of the existing themes, spelled exactly the same, whenever the word \
         fits it. Create a new theme only when none fits, and keep themes broad enough to group \
-        several words.
+        several words. Compound nouns always use the theme "\(VocabEntry.compoundCategory)".
+        - parts: for a compound noun, the words it is made of in their base form, in order, \
+        without linking letters or articles (Küchentür → ["Küche", "Tür"], Schreibtisch → \
+        ["schreiben", "Tisch"], Arbeitszimmer → ["Arbeit", "Zimmer"]); [] for any other word.
+
+        Exercises that combine words (word + word, columns to connect, "Bilde Komposita", \
+        "Was passt zusammen?") must be solved: return each resulting compound with its parts, and \
+        also return every part as a word of its own with its usual theme.
 
         Answer with JSON only, shaped as {"words": [ ... ]}.
         """
@@ -52,11 +59,12 @@ public enum ExtractionPrompt {
             "partOfSpeech": partOfSpeech,
             "emoji": string,
             "category": string,
+            "parts": english,
         ]
         let word: [String: Any] = [
             "type": "object",
             "properties": properties,
-            "required": ["german", "article", "plural", "english", "partOfSpeech", "emoji", "category"],
+            "required": ["german", "article", "plural", "english", "partOfSpeech", "emoji", "category", "parts"],
             "additionalProperties": false,
         ]
         let words: [String: Any] = ["type": "array", "items": word]
