@@ -19,9 +19,12 @@ final class WordSetStore: ObservableObject {
         }
     }
 
+    /// `name` falls back to the next "Set N" when nil or empty.
     @discardableResult
-    func create(wordIDs: [UUID]) -> WordSet {
-        let set = WordSet(name: WordSetPicker.nextName(existing: sets.map(\.name)), wordIDs: wordIDs)
+    func create(name: String? = nil, wordIDs: [UUID]) -> WordSet {
+        let given = name?.trimmed ?? ""
+        let set = WordSet(name: given.isEmpty ? WordSetPicker.nextName(existing: sets.map(\.name)) : given,
+                          wordIDs: wordIDs)
         sets.append(set)
         save()
         return set

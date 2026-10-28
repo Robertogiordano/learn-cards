@@ -5,13 +5,16 @@ import SwiftUI
 struct ReviewItem: Identifiable {
     var entry: VocabEntry
     var isSelected: Bool
+    /// Goes in the word set made from this batch, when there is one.
+    var inSet = true
 
     var id: UUID { entry.id }
 }
 
 /// Lets the learner fix the model's output before it reaches the vocabulary.
 struct ReviewExtractedView: View {
-    let onSaved: (Int) -> Void
+    /// Words saved and the word set created, if any.
+    let onSaved: (Int, WordSet?) -> Void
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -21,8 +24,10 @@ struct ReviewExtractedView: View {
     @State private var didMarkDuplicates = false
     @State private var isNamingTheme = false
     @State private var newTheme = ""
+    @AppStorage(SettingsKey.reviewCreatesSet) private var createsSet = false
+    @State private var setName = WordSetPicker.nextName(existing: WordSetStore.shared.sets.map(\.name))
 
-    init(entries: [VocabEntry], onSaved: @escaping (Int) -> Void) {
+    init(entries: [VocabEntry], onSaved: @escaping (Int, WordSet?) -> Void) {
         self.onSaved = onSaved
         _items = State(initialValue: entries.map { ReviewItem(entry: $0, isSelected: true) })
     }
@@ -32,6 +37,20 @@ struct ReviewExtractedView: View {
     }
 
     private var selectedCount: Int { items.filter(\.isSelected).count }
+
+    /// Ids of the words the set will hold: existing words for duplicates, the new word
+    /// for selected ones; new words left unselected are not saved, so they stay out.
+    private var setWordIDs: [UUID] {
+        guard createsSet else { return [] }
+        let existing = existingByKey
+        var seen = Set<UUID>()
+        return items.compactMap { item -> UUID? in
+            guard item.inSet else { return nil }
+            if let word = existing[item.entry.dedupeKey] { return word.id }
+            return item.isSelected ? item.entry.id : nil
+        }
+        .filter { seen.insert($0).inserted }
+    }
 
     /// Themes of this batch, in order of first appearance.
     private var batchThemes: [String] {
@@ -48,6 +67,17 @@ struct ReviewExtractedView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Toggle("Also create a word set", isOn: $createsSet)
+                    if createsSet {
+                        TextField("Set name", text: $setName)
+                    }
+                } footer: {
+                    if createsSet {
+                        Text("Every word goes in the set (\(setWordIDs.count) now); tap the stack icon to leave one out. Words already in your vocabulary join with their progress; new words you deselect are not saved, so they stay out.")
+                    }
+                }
+
                 ForEach(batchThemes, id: \.self) { theme in
                     Section {
                         ForEach(items.filter { $0.entry.category == theme }) { item in
@@ -76,7 +106,7 @@ struct ReviewExtractedView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save (\(selectedCount))", action: save)
-                        .disabled(selectedCount == 0)
+                        .disabled(selectedCount == 0 && setWordIDs.isEmpty)
                 }
                 ToolbarItem(placement: .bottomBar) {
                     Menu {
@@ -141,6 +171,22 @@ struct ReviewExtractedView: View {
 
             Spacer()
 
+            if createsSet {
+                // A new word that will not be saved cannot be in the set.
+                let canJoin = isDuplicate || item.isSelected
+                Button {
+                    if let index = items.firstIndex(where: { $0.id == item.id }) {
+                        items[index].inSet.toggle()
+                    }
+                } label: {
+                    Image(systemName: item.inSet ? "square.stack.fill" : "square.stack")
+                        .foregroundStyle(Color.accentColor)
+                        .opacity(canJoin ? 1 : 0.3)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(item.inSet ? "In the word set" : "Not in the word set")
+            }
+
             Button {
                 editing = item
             } label: {
@@ -174,6 +220,7 @@ struct ReviewExtractedView: View {
 
     private func save() {
         let existing = existingByKey
+        let memberIDs = setWordIDs
         var count = 0
         for item in items where item.isSelected {
             if let word = existing[item.entry.dedupeKey] {
@@ -184,7 +231,8 @@ struct ReviewExtractedView: View {
             count += 1
         }
         try? context.save()
-        onSaved(count)
+        let set = memberIDs.isEmpty ? nil : WordSetStore.shared.create(name: setName, wordIDs: memberIDs)
+        onSaved(count, set)
         dismiss()
     }
 }

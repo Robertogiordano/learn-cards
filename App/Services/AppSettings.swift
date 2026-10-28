@@ -26,6 +26,8 @@ enum SettingsKey {
     /// Importing phrases also extracts words / verbs from the same photo.
     static let phraseImportWords = "phraseImportWords"
     static let phraseImportVerbs = "phraseImportVerbs"
+    /// The word review also creates a word set from the extracted words.
+    static let reviewCreatesSet = "reviewCreatesSet"
 }
 
 struct ModelOption: Identifiable {

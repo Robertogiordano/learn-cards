@@ -169,8 +169,13 @@ struct ImportView: View {
                         addSaved(count == 1 ? "1 phrase saved" : "\(count) phrases saved")
                     }
                 case .words(let batch):
-                    ReviewExtractedView(entries: batch.entries) { count in
-                        addSaved(count == 1 ? "1 word saved" : "\(count) words saved")
+                    ReviewExtractedView(entries: batch.entries) { count, set in
+                        if count > 0 {
+                            addSaved(count == 1 ? "1 word saved" : "\(count) words saved")
+                        }
+                        if let set {
+                            addSaved("set “\(set.name)” with \(set.wordIDs.count) words")
+                        }
                     }
                 case .verbs(let batch):
                     ReviewVerbsView(verbs: batch.verbs, skipped: batch.skipped) { count in

@@ -19,6 +19,7 @@ App iOS nativa (iPhone, iOS 17+) per memorizzare vocaboli tedeschi. L'interfacci
   - Ogni parola passa da scelta multipla a scrittura a pronuncia man mano che la impari; un errore la riporta alla scelta multipla.
   - **Free practice** per scegliere a mano area, temi e tipo di esercizio.
   - **Word sets**: un pulsante crea un set casuale di 10, 20 o 30 parole, pescate da tutto il vocabolario preferendo quelle nuove o poco sapute. Il set poi resta fisso e si allena come un tema (aree, esercizi, percentuali, stelle); i set si possono rinominare o eliminare e sono inclusi nel backup.
+    Un set si può creare anche nella revisione di un import di **Words** («Also create a word set»): entrano tutte le parole estratte (i doppioni con i loro progressi), con l'icona a pila se ne esclude qualcuna; nel vocabolario si salvano comunque solo le parole selezionate.
   - Ogni sessione (parole, frasi, verbi) prende prima i ripassi in scadenza, poi al massimo 4 novità, poi gli elementi più deboli nell'esercizio scelto, a rotazione: quelli già al 100% in quell'esercizio tornano solo quando non c'è altro. Una risposta sbagliata ritorna qualche domanda dopo, al massimo due volte per sessione.
 - **Numeri** (scheda Study), su 4 livelli (0–20, 21–100, 101–1.000, fino a 1.000.000):
   - ascolta e scegli tra 4 opzioni ingannevoli (21 ↔ 12, 13 ↔ 30, ±1, ±10);
