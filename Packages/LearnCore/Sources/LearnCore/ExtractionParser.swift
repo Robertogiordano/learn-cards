@@ -51,9 +51,9 @@ public enum ExtractionParser {
         var german = clean(raw.german)
         var article = Article(rawValue: clean(raw.article).lowercased())
 
-        let parts = german.split(separator: " ", maxSplits: 1)
-        if parts.count == 2, let leading = Article(rawValue: parts[0].lowercased()) {
-            german = String(parts[1])
+        let tokens = german.split(separator: " ", maxSplits: 1)
+        if tokens.count == 2, let leading = Article(rawValue: tokens[0].lowercased()) {
+            german = String(tokens[1])
             article = article ?? leading
         }
         guard !german.isEmpty else { return nil }
