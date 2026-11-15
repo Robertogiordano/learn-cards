@@ -361,6 +361,17 @@ public struct GrammarPill: Codable, Hashable, Identifiable, Sendable {
     public var lastPracticed: Date?
     /// Recent wrong answers, so new exercises can target them.
     public var mistakes: [GrammarMistake]
+    /// Stored optional so pills saved before the chat existed still load.
+    private var chatMessages: [GrammarChatMessage]?
+
+    /// Questions and answers about this pill, oldest first.
+    public var chat: [GrammarChatMessage] {
+        get { chatMessages ?? [] }
+        set { chatMessages = Array(newValue.suffix(Self.keptChatMessages)) }
+    }
+
+    /// The chat kept on the phone; only the last few go to the model.
+    public static let keptChatMessages = 100
 
     public init(id: UUID = UUID(), topic: GrammarTopic, lesson: GrammarLesson, createdAt: Date = Date(),
                 lessonCompleted: Bool = false, exercises: [GrammarTask] = [], scores: [Double] = [],
@@ -391,6 +402,112 @@ public struct GrammarPill: Codable, Hashable, Identifiable, Sendable {
         lastPracticed = date
         mistakes += new
         if mistakes.count > Self.maximumMistakes { mistakes.removeFirst(mistakes.count - Self.maximumMistakes) }
+    }
+}
+
+// MARK: - Chat
+
+public struct GrammarChatMessage: Codable, Hashable, Identifiable, Sendable {
+    public enum Role: String, Codable, Sendable {
+        case user, assistant
+    }
+
+    public var id: UUID
+    public var role: Role
+    public var text: String
+    public var date: Date
+    /// File name of a photo sent with the question (e.g. a page of the course book).
+    public var imageName: String?
+
+    public init(id: UUID = UUID(), role: Role, text: String, date: Date = Date(), imageName: String? = nil) {
+        self.id = id
+        self.role = role
+        self.text = text
+        self.date = date
+        self.imageName = imageName
+    }
+}
+
+/// A tutor that answers doubts about one pill. To stay cheap it sends a compact lesson
+/// summary, the recent mistakes and only the latest turns of the conversation.
+public enum GrammarChatPrompt {
+    /// Messages of the conversation sent with each question (the rest stays on the phone).
+    public static let window = 12
+    /// Rough cap on the characters of those messages, for very long answers.
+    public static let windowCharacters = 6000
+    /// Answers are short by design.
+    public static let maxTokens = 600
+    /// A photo travels again only while its question is among the last few messages;
+    /// after that the model gets a short note instead, so old photos stop costing tokens.
+    public static let imageWindow = 4
+    /// The question sent with a photo and no text.
+    public static let photoOnlyQuestion = "Here is a page from my book. Help me understand it."
+    public static let earlierPhotoNote = "[photo sent earlier]"
+
+    public static func system(for pill: GrammarPill) -> String {
+        let lesson = pill.lesson
+        let outline = lesson.cards.map { card in
+            let examples = card.examples.prefix(2).map(\.german).joined(separator: " / ")
+            return "- \(card.title): \(card.body)" + (examples.isEmpty ? "" : " (e.g. \(examples))")
+        }.joined(separator: "\n")
+        var text = """
+        You are a patient German tutor in a learning app. The learner (level \(lesson.level.isEmpty ? "A1" : lesson.level), \
+        native language probably Italian, app in English) is studying "\(pill.topic.title)" and asks you about doubts.
+
+        Lesson they studied:
+        \(outline)
+        """
+        if let chapter = GrammarCourse.a1.chapter(pill.topic.chapter) {
+            text += "\n\nIt is chapter \(chapter.number) of their A1 course book (\(chapter.title)); avoid grammar they have not met yet."
+        }
+        if !pill.mistakes.isEmpty {
+            let mistakes = pill.mistakes.suffix(5).map { "- \($0.prompt): answered \"\($0.given)\", right \"\($0.expected)\"" }
+            text += "\n\nTheir recent mistakes on this topic:\n" + mistakes.joined(separator: "\n")
+        }
+        text += """
+
+
+        How to answer:
+        - Reply in the language of the question (Italian or English); German examples stay in German.
+        - Be short and concrete: usually 2-6 sentences or a few bullet points, with 1-3 simple example sentences. \
+        Use **bold** for the key forms. No headings, no tables.
+        - Explain simply, like a friend who knows grammar; compare with Italian or English when it helps.
+        - If the question is about something else in German, answer briefly anyway. If it is not about German, \
+        say kindly that you help with German.
+        - Every German sentence must be correct. If you are not sure about something, say so.
+        - The learner may send a photo of their book or exercises: read it and answer about what they see \
+        (explain the rule, solve and explain the exercise, translate). If the photo is unreadable, say so.
+        """
+        return text
+    }
+
+    /// Whether a message's photo is sent again with this request.
+    public static func sendsImage(of message: GrammarChatMessage, in recent: [GrammarChatMessage]) -> Bool {
+        guard message.imageName != nil, let index = recent.firstIndex(where: { $0.id == message.id }) else { return false }
+        return index >= recent.count - imageWindow
+    }
+
+    /// The latest messages, oldest first, starting with a question and within the size cap.
+    public static func recent(_ messages: [GrammarChatMessage]) -> [GrammarChatMessage] {
+        var picked: [GrammarChatMessage] = []
+        var characters = 0
+        for message in messages.suffix(window).reversed() {
+            characters += message.text.count
+            if characters > windowCharacters && !picked.isEmpty { break }
+            picked.insert(message, at: 0)
+        }
+        while picked.first?.role == .assistant { picked.removeFirst() }
+        return picked
+    }
+
+    /// Ready-made questions, the last mistake first.
+    public static func suggestions(for pill: GrammarPill) -> [String] {
+        var result: [String] = []
+        if let mistake = pill.mistakes.last {
+            result.append("Why is “\(mistake.expected)” right and not “\(mistake.given)”?")
+        }
+        result += ["Explain it again more simply", "Give me 3 more everyday examples", "How do I remember this?"]
+        return result
     }
 }
 

@@ -508,6 +508,19 @@ struct GrammarPillView: View {
                 Text(vocabularyNote)
             }
 
+            Section {
+                NavigationLink {
+                    GrammarChatView(pillID: pill.id)
+                } label: {
+                    ActionCard(icon: "bubble.left.and.text.bubble.right.fill",
+                               title: "Ask the tutor",
+                               subtitle: pill.chat.isEmpty
+                                   ? "Doubts about this topic? Ask, or send a photo of your book"
+                                   : "\(pill.chat.filter { $0.role == .user }.count) questions so far",
+                               color: .purple, showsChevron: false)
+                }
+            }
+
             if let errorMessage {
                 Section { Text(errorMessage).foregroundStyle(.red) }
             }
@@ -644,6 +657,8 @@ private struct ActionCard: View {
     let title: String
     let subtitle: String
     let color: Color
+    /// Off inside a NavigationLink, which draws its own chevron.
+    var showsChevron = true
 
     var body: some View {
         HStack(spacing: 14) {
@@ -655,7 +670,9 @@ private struct ActionCard: View {
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+            if showsChevron {
+                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())

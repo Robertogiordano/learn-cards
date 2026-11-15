@@ -12,6 +12,7 @@ struct GrammarLessonView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var index = 0
     @State private var clock = ActiveClock()
+    @State private var showsChat = false
 
     private var steps: [GrammarLesson.Step] { pill.lesson.steps }
 
@@ -41,6 +42,19 @@ struct GrammarLessonView: View {
                         ProgressView(value: Double(index), total: Double(max(steps.count, 1)))
                             .frame(width: 160)
                     }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showsChat = true
+                    } label: {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                    }
+                    .accessibilityLabel("Ask the tutor")
+                }
+            }
+            .sheet(isPresented: $showsChat) {
+                NavigationStack {
+                    GrammarChatView(pillID: pill.id, isSheet: true)
                 }
             }
         }

@@ -175,4 +175,43 @@ final class GrammarTests: XCTestCase {
             XCTAssertNoThrow(try GrammarParser.parseBundledLessons(Data(contentsOf: url), course: .a1), url.lastPathComponent)
         }
     }
+
+    func testChatWindowKeepsTheLatestTurnsStartingWithAQuestion() {
+        var messages: [GrammarChatMessage] = []
+        for index in 0..<20 {
+            messages.append(GrammarChatMessage(role: .user, text: "q\(index)"))
+            messages.append(GrammarChatMessage(role: .assistant, text: "a\(index)"))
+        }
+        let recent = GrammarChatPrompt.recent(messages)
+        XCTAssertEqual(recent.count, GrammarChatPrompt.window)
+        XCTAssertEqual(recent.first?.text, "q14")
+        XCTAssertEqual(recent.last?.text, "a19")
+
+        let long = [GrammarChatMessage(role: .user, text: String(repeating: "x", count: 5000)),
+                    GrammarChatMessage(role: .assistant, text: String(repeating: "y", count: 5000)),
+                    GrammarChatMessage(role: .user, text: "short")]
+        XCTAssertEqual(GrammarChatPrompt.recent(long).map(\.text), ["short"], "the size cap drops old turns, never the question")
+    }
+
+    func testChatIsSavedWithThePillAndOldPillsLoad() throws {
+        var pill = GrammarPill(topic: GrammarTopic(title: "Dativ"),
+                               lesson: GrammarLesson(title: "Dativ", emoji: "🎁", level: "A1", summary: "",
+                                                     cards: [GrammarCard(title: "Idea", body: "dem")], games: []))
+        XCTAssertTrue(pill.chat.isEmpty)
+        pill.chat.append(GrammarChatMessage(role: .user, text: "Warum dem?"))
+        let decoded = try JSONDecoder().decode(GrammarPill.self, from: JSONEncoder().encode(pill))
+        XCTAssertEqual(decoded.chat.first?.text, "Warum dem?")
+        XCTAssertTrue(GrammarChatPrompt.system(for: pill).contains("Idea: dem"))
+    }
+
+    func testPhotosAreResentOnlyWhileRecent() {
+        let photo = GrammarChatMessage(role: .user, text: "", imageName: "a.jpg")
+        var messages = [photo, GrammarChatMessage(role: .assistant, text: "a")]
+        XCTAssertTrue(GrammarChatPrompt.sendsImage(of: photo, in: GrammarChatPrompt.recent(messages)))
+        for index in 0..<3 {
+            messages.append(GrammarChatMessage(role: .user, text: "q\(index)"))
+            messages.append(GrammarChatMessage(role: .assistant, text: "a\(index)"))
+        }
+        XCTAssertFalse(GrammarChatPrompt.sendsImage(of: photo, in: GrammarChatPrompt.recent(messages)))
+    }
 }

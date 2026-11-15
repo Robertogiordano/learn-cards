@@ -39,6 +39,7 @@ final class GrammarPillStore: ObservableObject {
     }
 
     func delete(_ id: UUID) {
+        GrammarChatImageStore.delete(pill(id)?.chat.compactMap(\.imageName) ?? [])
         pills.removeAll { $0.id == id }
         save()
     }

@@ -172,6 +172,40 @@ struct OpenRouterClient {
         return try GrammarParser.parseExercises(content)
     }
 
+    /// One answer of the pill tutor: plain text, short, with the last turns as context.
+    func grammarChat(pill: GrammarPill, history: [GrammarChatMessage]) async throws -> String {
+        guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
+        let recent = GrammarChatPrompt.recent(history)
+        let turns = recent.map { message -> [String: Any] in
+            let text = message.text.isEmpty && message.imageName != nil ? GrammarChatPrompt.photoOnlyQuestion : message.text
+            guard let name = message.imageName else { return ["role": message.role.rawValue, "content": text] }
+            // Recent photos travel with their question; older ones become a short note.
+            guard GrammarChatPrompt.sendsImage(of: message, in: recent), let jpeg = GrammarChatImageStore.data(name) else {
+                return ["role": message.role.rawValue, "content": GrammarChatPrompt.earlierPhotoNote + " " + text]
+            }
+            let parts: [[String: Any]] = [
+                ["type": "text", "text": text],
+                ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(jpeg.base64EncodedString())"]],
+            ]
+            return ["role": message.role.rawValue, "content": parts]
+        }
+        let system: [String: Any] = ["role": "system", "content": GrammarChatPrompt.system(for: pill)]
+        var body: [String: Any] = [
+            "model": model,
+            "temperature": 0.4,
+            "max_tokens": GrammarChatPrompt.maxTokens,
+            "messages": [system] + turns,
+            "reasoning": ["enabled": false],
+        ]
+        do {
+            return try await send(body)
+        } catch ClientError.http(let status, _) where status == 400 {
+            // Some models reject the reasoning setting.
+            body["reasoning"] = nil
+            return try await send(body)
+        }
+    }
+
     private func extract(jpeg: Data?, request: Request) async throws -> String {
         guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
         do {
@@ -189,13 +223,6 @@ struct OpenRouterClient {
     }
 
     private func complete(jpeg: Data?, request extraction: Request, structured: Bool) async throws -> String {
-        var request = URLRequest(url: Self.endpoint, timeoutInterval: 120)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("https://github.com/robertogiordano/learn-cards", forHTTPHeaderField: "HTTP-Referer")
-        request.setValue("LearnCards", forHTTPHeaderField: "X-Title")
-
         let textPart: [String: Any] = ["type": "text", "text": extraction.instruction]
         var parts = [textPart]
         if let jpeg {
@@ -224,6 +251,17 @@ struct OpenRouterClient {
             let responseFormat: [String: Any] = ["type": "json_schema", "json_schema": schema]
             body["response_format"] = responseFormat
         }
+        return try await send(body)
+    }
+
+    /// Posts a chat completion and returns the text of the first choice.
+    private func send(_ body: [String: Any]) async throws -> String {
+        var request = URLRequest(url: Self.endpoint, timeoutInterval: 120)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://github.com/robertogiordano/learn-cards", forHTTPHeaderField: "HTTP-Referer")
+        request.setValue("LearnCards", forHTTPHeaderField: "X-Title")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: request)
