@@ -1,0 +1,79 @@
+{"lessons": [
+{
+  "topic": "Possessive articles (Possessivartikel)",
+  "title": "mein, dein, sein…", "emoji": "👜", "level": "A1",
+  "summary": "Words for 'my, your, his, her…'. They take the same endings as ein.",
+  "cards": [
+    {"title": "When do you need them?",
+     "body": "Talking about your job, your colleagues and your family: **Mein Chef ist nett.** **Ihre Firma ist in Hamburg.** **Unsere Kollegin heißt Sara.**",
+     "examples": [{"german": "Das ist **mein** Büro.", "english": "This is my office."},
+                  {"german": "Wie heißt **deine** Chefin?", "english": "What's your boss's name?"}]},
+    {"title": "One for each person",
+     "body": "Each personal pronoun has its possessive. Careful: **sein** = his/its, **ihr** = her **and** their, **Ihr** (capital) = your (polite).",
+     "table": {"headers": ["pronoun", "possessive"],
+               "rows": [["ich", "**mein**"], ["du", "**dein**"], ["er / es", "**sein**"], ["sie (she)", "**ihr**"], ["wir", "**unser**"], ["ihr", "**euer**"], ["sie (they)", "**ihr**"], ["Sie", "**Ihr**"]]}},
+    {"title": "Endings like ein",
+     "body": "The ending depends on the **noun** that follows, just like ein/eine. Feminine and plural add **-e**; masculine in the accusative adds **-en**.",
+     "table": {"headers": ["", "nominative", "accusative"],
+               "rows": [["der Kollege", "mein Kollege", "mein**en** Kollegen"], ["die Firma", "mein**e** Firma", "mein**e** Firma"], ["das Büro", "mein Büro", "mein Büro"], ["die Kollegen", "mein**e** Kollegen", "mein**e** Kollegen"]]},
+     "tip": "euer loses an e with an ending: eure Firma."},
+    {"title": "his or her?",
+     "body": "The possessive depends on the **owner**, the ending on the **thing**. Tom and his car: **sein** Auto. Lisa and her car: **ihr** Auto. Lisa and her computer: **ihr** Computer.",
+     "examples": [{"german": "Herr Klein arbeitet viel. **Seine** Arbeit ist interessant.", "english": "Mr Klein works a lot. His work is interesting."},
+                  {"german": "Frau Roth sucht **ihren** Schlüssel.", "english": "Mrs Roth is looking for her key."}]},
+    {"title": "Common mistakes",
+     "body": "Not 'meine Chef': der Chef → **mein** Chef. Not 'sein Auto' for a woman: **ihr** Auto. And polite **Ihr** has a capital I.",
+     "examples": [{"german": "Wie ist **Ihre** Telefonnummer?", "english": "What's your phone number?"}]}
+  ],
+  "games": [
+    {"kind": "match", "prompt": "Match the pronoun and its possessive",
+     "pairs": [{"left": "ich", "right": "mein"}, {"left": "du", "right": "dein"}, {"left": "er", "right": "sein"}, {"left": "wir", "right": "unser"}, {"left": "ihr", "right": "euer"}],
+     "explanation": "Each person has its own possessive."},
+    {"kind": "sort", "prompt": "Lisa talks about her… : ihr or ihre?",
+     "pairs": [{"left": "Chef (der)", "right": "ihr"}, {"left": "Firma (die)", "right": "ihre"}, {"left": "Büro (das)", "right": "ihr"},
+               {"left": "Kollegen (plural)", "right": "ihre"}, {"left": "Arbeit (die)", "right": "ihre"}],
+     "explanation": "Feminine and plural add -e, like eine."},
+    {"kind": "choice", "prompt": "Paul ruft ___ Chefin an.", "english": "Paul calls his boss.",
+     "options": ["seine", "ihre", "sein"], "answers": ["seine"],
+     "explanation": "Paul is the owner (sein), Chefin is feminine (+e): seine."}
+  ]
+},
+{
+  "topic": "Modal prepositions (modale Präpositionen)",
+  "title": "mit, ohne, als, wie", "emoji": "🧰", "level": "A1",
+  "summary": "Small words that say how, with what and in what role: mit dem Bus, ohne Pause, als Lehrer, wie ein Profi.",
+  "cards": [
+    {"title": "When do you need them?",
+     "body": "Describing your job and how you work: **Ich arbeite als Krankenpfleger.** **Ich fahre mit dem Fahrrad zur Arbeit.** **Ich arbeite ohne Pause.**",
+     "examples": [{"german": "Sie arbeitet **als** Ingenieurin.", "english": "She works as an engineer."}]},
+    {"title": "als = as (a role)",
+     "body": "**als** + profession, without article: your role at work. Don't confuse it with **wie**, which compares.",
+     "examples": [{"german": "Ich arbeite **als** Kellner in einem Café.", "english": "I work as a waiter in a café."},
+                  {"german": "Er kocht **wie** ein Profi.", "english": "He cooks like a pro."}],
+     "tip": "als = what you are, wie = what you are similar to."},
+    {"title": "mit = with / by",
+     "body": "**mit** says who you're with, what you use and how you travel. It's always followed by the **dative**: dem (der/das), der (die), den + n (plural).",
+     "table": {"headers": ["", "mit + dative"],
+               "rows": [["der Bus", "mit **dem** Bus"], ["die Kollegin", "mit **der** Kollegin"], ["das Auto", "mit **dem** Auto"], ["die Kollegen", "mit **den** Kollegen"]]}},
+    {"title": "ohne = without",
+     "body": "**ohne** is the opposite of mit, but takes the **accusative** and very often no article at all.",
+     "examples": [{"german": "Ich trinke Kaffee **ohne** Zucker.", "english": "I drink coffee without sugar."},
+                  {"german": "Er arbeitet **ohne** seinen Laptop.", "english": "He works without his laptop."}]},
+    {"title": "Common mistakes",
+     "body": "Not 'Ich arbeite wie Lehrerin' for your job: **als** Lehrerin. Not 'mit der Bus': **mit dem Bus**. And no article after als.",
+     "examples": [{"german": "Ich fahre **mit der** U-Bahn ins Büro.", "english": "I take the underground to the office."}]}
+  ],
+  "games": [
+    {"kind": "sort", "prompt": "als or wie?",
+     "pairs": [{"left": "Ich arbeite ___ Ärztin.", "right": "als"}, {"left": "Er singt ___ ein Star.", "right": "wie"},
+               {"left": "Sie jobbt ___ Kellnerin.", "right": "als"}, {"left": "Das Büro ist ___ ein Wohnzimmer.", "right": "wie"}],
+     "explanation": "als for a role, wie for a comparison."},
+    {"kind": "match", "prompt": "mit + dative",
+     "pairs": [{"left": "der Zug", "right": "mit dem Zug"}, {"left": "die Chefin", "right": "mit der Chefin"}, {"left": "die Kinder", "right": "mit den Kindern"}],
+     "explanation": "der/das → dem, die → der, plural → den + n."},
+    {"kind": "choice", "prompt": "Ich fahre ___ Fahrrad zur Arbeit.", "english": "I cycle to work.",
+     "options": ["mit dem", "mit der", "ohne das"], "answers": ["mit dem"],
+     "explanation": "das Fahrrad → mit dem Fahrrad."}
+  ]
+}
+]}

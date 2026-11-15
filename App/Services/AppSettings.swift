@@ -28,6 +28,8 @@ enum SettingsKey {
     static let phraseImportVerbs = "phraseImportVerbs"
     /// The word review also creates a word set from the extracted words.
     static let reviewCreatesSet = "reviewCreatesSet"
+    /// Model for grammar pills; empty = the extraction model.
+    static let grammarModel = "grammarModel"
 }
 
 struct ModelOption: Identifiable {
@@ -44,6 +46,21 @@ enum OpenRouterModels {
         ModelOption(id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", note: "Cheaper · less accurate on articles and plurals"),
         ModelOption(id: "openai/gpt-4.1-mini", name: "GPT-4.1 mini", note: "Alternative · similar cost to Flash"),
     ]
+
+    /// Grammar pills are text only, so stronger models stay cheap.
+    static let grammarPresets = [
+        ModelOption(id: "", name: "Same as extraction", note: "Default · uses the model above"),
+        ModelOption(id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", note: "Stronger · a few cents per pill"),
+        ModelOption(id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5", note: "Stronger · clear explanations"),
+    ]
+
+    /// The grammar model, falling back to the extraction model and then to the default.
+    static func grammarModel(defaults: UserDefaults = .standard) -> String {
+        let grammar = (defaults.string(forKey: SettingsKey.grammarModel) ?? "").trimmed
+        if !grammar.isEmpty { return grammar }
+        let model = (defaults.string(forKey: SettingsKey.model) ?? "").trimmed
+        return model.isEmpty ? defaultModel : model
+    }
 }
 
 /// The exercise chosen on the study screen: one kind, or a random mix of the area's kinds.

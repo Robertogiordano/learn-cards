@@ -59,7 +59,8 @@ final class BackupTests: XCTestCase {
         XCTAssertEqual(word.category, VocabEntry.defaultCategory)
         XCTAssertEqual(word.srs.repetitions, 2)
         XCTAssertTrue(word.articleSrs.isNew)
-        XCTAssertTrue(word.pluralSrs.isNew)        XCTAssertNil(word.streak(for: .translation))
+        XCTAssertTrue(word.pluralSrs.isNew)
+        XCTAssertNil(word.streak(for: .translation))
     }
 
     func testRoundTripKeepsStreaks() throws {

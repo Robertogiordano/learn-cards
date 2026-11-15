@@ -51,6 +51,7 @@ struct OpenRouterClient {
         let schema: [String: Any]
         /// Extractions are mechanical: "thinking" only makes them slower and dearer.
         var reasoning: [String: Any]? = ["enabled": false]
+        var temperature = 0.2
     }
 
     func extractVocabulary(fromJPEG jpeg: Data) async throws -> [VocabEntry] {
@@ -129,6 +130,34 @@ struct OpenRouterClient {
         return try CoachPrompt.parse(content)
     }
 
+    /// The theory and the little games of a grammar pill (text only).
+    func grammarLesson(topic: GrammarTopic) async throws -> GrammarLesson {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: GrammarPrompt.lessonSystem(),
+            instruction: GrammarPrompt.lessonInstruction(for: topic),
+            schemaName: "grammar_lesson",
+            schema: GrammarPrompt.lessonSchema,
+            // Correct grammar matters more than speed here.
+            reasoning: ["effort": "low"],
+            temperature: 0.4
+        ))
+        return try GrammarParser.parseLesson(content, topic: topic)
+    }
+
+    /// Fresh exercises on a pill, built on the learner's own vocabulary (text only).
+    func grammarExercises(pill: GrammarPill, vocabulary: [GrammarVocabItem]) async throws -> [GrammarTask] {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: GrammarPrompt.exercisesSystem(),
+            instruction: GrammarPrompt.exercisesInstruction(pill: pill, vocabulary: vocabulary),
+            schemaName: "grammar_exercises",
+            schema: GrammarPrompt.exercisesSchema,
+            reasoning: ["effort": "low"],
+            // A little variety, so each new set feels different.
+            temperature: 0.6
+        ))
+        return try GrammarParser.parseExercises(content)
+    }
+
     private func extract(jpeg: Data?, request: Request) async throws -> String {
         guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
         do {
@@ -166,7 +195,7 @@ struct OpenRouterClient {
         let userMessage: [String: Any] = ["role": "user", "content": parts]
         var body: [String: Any] = [
             "model": model,
-            "temperature": 0.2,
+            "temperature": extraction.temperature,
             "messages": [systemMessage, userMessage],
         ]
         if let reasoning = extraction.reasoning {

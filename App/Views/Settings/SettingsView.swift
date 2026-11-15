@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.reminderEnabled) private var reminderEnabled = false
     @AppStorage(SettingsKey.reminderMinutes) private var reminderMinutes = 18 * 60
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
+    @AppStorage(SettingsKey.grammarModel) private var grammarModel = ""
     @AppStorage(SettingsKey.sessionSize) private var sessionSize = 20
     @AppStorage(SettingsKey.lessonNewWords) private var lessonNewWords = 8
     @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
@@ -36,6 +37,7 @@ struct SettingsView: View {
                 goalSection
                 apiSection
                 modelSection
+                grammarModelSection
                 studySection
                 importSection
                 backupSection
@@ -151,6 +153,38 @@ struct SettingsView: View {
             Text("Extraction model")
         } footer: {
             Text("It needs a model that accepts images. You can paste any id from openrouter.ai/models.")
+        }
+    }
+
+    private var grammarModelSection: some View {
+        Section {
+            ForEach(OpenRouterModels.grammarPresets) { preset in
+                Button {
+                    grammarModel = preset.id
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preset.name)
+                                .foregroundStyle(.primary)
+                            Text(preset.note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if grammarModel.trimmed == preset.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            TextField("Other model (OpenRouter id)", text: $grammarModel)
+                .font(.callout.monospaced())
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        } header: {
+            Text("Grammar pills model")
+        } footer: {
+            Text("Writes the lessons and the exercises (text only, no photos). Start with the extraction model; switch to a stronger one if explanations or exercises are not accurate enough.")
         }
     }
 

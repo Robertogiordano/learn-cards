@@ -20,6 +20,8 @@ struct RootView: View {
         TabView {
             PathView()
                 .tabItem { Label("Study", systemImage: "graduationcap") }
+            GrammarView()
+                .tabItem { Label("Grammar", systemImage: "pills") }
             VocabularyView()
                 .tabItem { Label("Vocabulary", systemImage: "books.vertical") }
             ImportView()
