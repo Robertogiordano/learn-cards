@@ -75,3 +75,28 @@ final class ExtractionParserTests: XCTestCase {
         XCTAssertTrue(JSONSerialization.isValidJSONObject(ExtractionPrompt.responseSchema))
     }
 }
+
+final class WordLookupPromptTests: XCTestCase {
+    func testPromptNamesThemesAndAsksForOneWord() {
+        let prompt = WordLookupPrompt.system(existingCategories: ["Food", "Home"])
+        XCTAssertTrue(prompt.contains("Food, Home"))
+        XCTAssertTrue(prompt.contains("exactly one word"))
+        XCTAssertTrue(prompt.contains("- german:"))
+    }
+
+    func testParsesSingleWord() throws {
+        let json = """
+        {"words": [{"german": "der Tisch", "article": null, "plural": "Tische", "english": ["table"], \
+        "partOfSpeech": "noun", "emoji": "🪑", "category": "home", "parts": []}]}
+        """
+        let entry = try XCTUnwrap(WordLookupPrompt.parse(json, existingCategories: ["Home"]))
+        XCTAssertEqual(entry.german, "Tisch")
+        XCTAssertEqual(entry.article, .der)
+        XCTAssertEqual(entry.plural, "Tische")
+        XCTAssertEqual(entry.category, "Home")
+    }
+
+    func testEmptyListGivesNil() throws {
+        XCTAssertNil(try WordLookupPrompt.parse(#"{"words": []}"#))
+    }
+}

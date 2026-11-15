@@ -18,6 +18,8 @@ struct WordEditView: View {
     @State private var partInput = ""
     @State private var isSuggesting = false
     @State private var suggestMessage: String?
+    @State private var isFilling = false
+    @State private var fillMessage: String?
     @Query private var vocabulary: [Word]
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
 
@@ -40,9 +42,30 @@ struct WordEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("German") {
+                Section {
                     TextField("Word, without article", text: $draft.german)
                         .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit {
+                            // A new word: Return fills the rest, like the button.
+                            if englishList.isEmpty, !draft.german.trimmed.isEmpty { fillWithAI() }
+                        }
+                    Button(action: fillWithAI) {
+                        HStack {
+                            Label("Fill in with AI", systemImage: "sparkles")
+                            if isFilling {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(draft.german.trimmed.isEmpty || isFilling)
+                    if let fillMessage {
+                        Text(fillMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     Picker("Article", selection: $draft.article) {
                         Text("—").tag(Article?.none)
                         ForEach(Article.allCases, id: \.self) { article in
@@ -54,6 +77,10 @@ struct WordEditView: View {
                         TextField("Plural, without article", text: $pluralText)
                             .autocorrectionDisabled()
                     }
+                } header: {
+                    Text("German")
+                } footer: {
+                    Text("Type the German word, then “Fill in with AI” adds article, plural, translations, theme and emoji. Check them before saving.")
                 }
                 if draft.article != nil {
                     partsSection
@@ -233,6 +260,44 @@ struct WordEditView: View {
                 partInput = ""
             } catch {
                 suggestMessage = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: - AI fill
+
+    /// Asks the model for everything else about the typed German word and fills the form.
+    private func fillWithAI() {
+        let word = draft.german.trimmed
+        guard !word.isEmpty, !isFilling else { return }
+        guard let key = Secrets.openRouterKey else {
+            fillMessage = "Add an OpenRouter API key in Settings to fill in words with AI."
+            return
+        }
+        let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
+        isFilling = true
+        fillMessage = nil
+        Task { @MainActor in
+            defer { isFilling = false }
+            do {
+                var client = OpenRouterClient(apiKey: key, model: modelID)
+                client.existingCategories = themes
+                let found = try await client.lookUpWord(word)
+                draft.german = found.german
+                draft.article = found.article
+                draft.partOfSpeech = found.partOfSpeech
+                draft.emoji = found.emoji
+                draft.category = found.category
+                pluralText = found.plural ?? ""
+                englishText = found.english.joined(separator: " / ")
+                // Parts already in the vocabulary keep its spelling.
+                parts = found.parts.map { part in
+                    vocabulary.first { PhraseChecker.key($0.german) == PhraseChecker.key(part) }?.german ?? part
+                }
+                partInput = ""
+                suggestMessage = nil
+            } catch {
+                fillMessage = error.localizedDescription
             }
         }
     }

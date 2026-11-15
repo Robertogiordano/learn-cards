@@ -107,6 +107,20 @@ struct OpenRouterClient {
         return verbs
     }
 
+    /// Article, plural, translations, theme and the rest for a word typed in German (text only).
+    func lookUpWord(_ word: String) async throws -> VocabEntry {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: WordLookupPrompt.system(existingCategories: existingCategories),
+            instruction: WordLookupPrompt.userInstruction(for: word),
+            schemaName: "vocabulary",
+            schema: WordLookupPrompt.responseSchema
+        ))
+        guard let entry = try WordLookupPrompt.parse(content, existingCategories: existingCategories) else {
+            throw ClientError.noWords
+        }
+        return entry
+    }
+
     /// The parts of a compound noun the vocabulary could not explain (text only).
     func splitCompound(_ word: String) async throws -> [String] {
         let content = try await extract(jpeg: nil, request: Request(

@@ -4,10 +4,7 @@ import Foundation
 public enum ExtractionPrompt {
     /// The learner's existing themes are listed so the model reuses them instead of inventing synonyms.
     public static func system(existingCategories: [String]) -> String {
-        let themes = existingCategories.isEmpty
-            ? "The learner has no themes yet."
-            : "The learner's existing themes are: \(existingCategories.joined(separator: ", "))."
-        return """
+        """
         You help an English-speaking learner memorize German vocabulary. You receive a photo of a \
         page from a German exercise book or worksheet.
 
@@ -16,6 +13,22 @@ public enum ExtractionPrompt {
         and text that is not German. Correct obvious OCR or handwriting mistakes. Return each word once.
 
         For each word return:
+        \(fieldGuide(existingCategories: existingCategories))
+
+        Exercises that combine words (word + word, columns to connect, "Bilde Komposita", \
+        "Was passt zusammen?") must be solved: return each resulting compound with its parts, and \
+        also return every part as a word of its own with its usual theme.
+
+        Answer with JSON only, shaped as {"words": [ ... ]}.
+        """
+    }
+
+    /// How to fill each field of a word; shared by the photo extraction and the single-word lookup.
+    static func fieldGuide(existingCategories: [String]) -> String {
+        let themes = existingCategories.isEmpty
+            ? "The learner has no themes yet."
+            : "The learner's existing themes are: \(existingCategories.joined(separator: ", "))."
+        return """
         - german: the base form WITHOUT article. Nouns in the nominative singular, capitalized \
         (Tisch); verbs in the infinitive (gehen); adjectives in the base form (schnell). Keep fixed \
         expressions as a phrase (es tut mir leid).
@@ -34,12 +47,6 @@ public enum ExtractionPrompt {
         - parts: for a compound noun, the words it is made of in their base form, in order, \
         without linking letters or articles (Küchentür → ["Küche", "Tür"], Schreibtisch → \
         ["schreiben", "Tisch"], Arbeitszimmer → ["Arbeit", "Zimmer"]); [] for any other word.
-
-        Exercises that combine words (word + word, columns to connect, "Bilde Komposita", \
-        "Was passt zusammen?") must be solved: return each resulting compound with its parts, and \
-        also return every part as a word of its own with its usual theme.
-
-        Answer with JSON only, shaped as {"words": [ ... ]}.
         """
     }
 
@@ -75,5 +82,33 @@ public enum ExtractionPrompt {
             "required": ["words"],
             "additionalProperties": false,
         ]
+    }
+}
+
+/// Fills in a single word the learner typed in German (text only, no photo).
+public enum WordLookupPrompt {
+    public static func system(existingCategories: [String]) -> String {
+        """
+        You help an English-speaking learner memorize German vocabulary. The learner typed one \
+        German word or fixed expression, possibly with its article, a typo or wrong capitalization. \
+        Correct it and describe it as exactly one entry.
+
+        Return:
+        \(ExtractionPrompt.fieldGuide(existingCategories: existingCategories))
+
+        Answer with JSON only, shaped as {"words": [ ... ]} with exactly one word.
+        """
+    }
+
+    public static func userInstruction(for word: String) -> String {
+        "Word: \(word)"
+    }
+
+    /// Same shape as the photo extraction, so the same parser reads it.
+    public static var responseSchema: [String: Any] { ExtractionPrompt.responseSchema }
+
+    /// The first entry the model returned, or nil when it found none.
+    public static func parse(_ content: String, existingCategories: [String] = []) throws -> VocabEntry? {
+        try ExtractionParser.parse(content, existingCategories: existingCategories).first
     }
 }
