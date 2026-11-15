@@ -7,6 +7,8 @@ struct ThemeDetailView: View {
     private let title: String
     /// The words of a set; nil for a theme, whose words are found by category.
     private let setWordIDs: Set<UUID>?
+    /// The set shown, so a rename shows up at once; nil for a theme.
+    private let setID: UUID?
 
     @Environment(\.modelContext) private var context
     @Query private var words: [Word]
@@ -15,15 +17,25 @@ struct ThemeDetailView: View {
     @State private var activeSession: StudySession?
     @State private var alertMessage: String?
     @State private var expandedAreas: Set<StudyArea> = []
+    @ObservedObject private var sets = WordSetStore.shared
+    @State private var isRenaming = false
+    @State private var newName = ""
 
     init(theme: String) {
         title = theme
         setWordIDs = nil
+        setID = nil
     }
 
     init(set: WordSet) {
         title = set.name
         setWordIDs = Set(set.wordIDs)
+        setID = set.id
+    }
+
+    /// The set's current name, or the theme.
+    private var name: String {
+        setID.flatMap { id in sets.sets.first { $0.id == id }?.name } ?? title
     }
 
     private var themeWords: [Word] {
@@ -65,8 +77,28 @@ struct ThemeDetailView: View {
             }
         }
         .listSectionSpacing(.compact)
-        .navigationTitle(title)
+        .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if setID != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        newName = name
+                        isRenaming = true
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .accessibilityLabel("Rename set")
+                }
+            }
+        }
+        .alert("Rename set", isPresented: $isRenaming) {
+            TextField("Name", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                if let setID { sets.rename(setID, to: newName.trimmed) }
+            }
+        }
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
         }
@@ -82,7 +114,7 @@ struct ThemeDetailView: View {
             Text(emoji)
                 .font(.system(size: 44))
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                Text(name)
                     .font(.title2.bold())
                 Text(progress.newCount > 0
                      ? "\(progress.wordCount) words · \(progress.newCount) new"

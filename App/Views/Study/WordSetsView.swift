@@ -44,7 +44,7 @@ struct WordSetsView: View {
                 }
                 .disabled(words.isEmpty)
             } footer: {
-                Text("A new set picks words at random from your whole vocabulary, favouring new and weak ones. Then it stays the same, so you can train it like a theme until every star lights up.")
+                Text("A new set picks words at random from your whole vocabulary, favouring new and weak ones. Then it stays the same, so you can train it like a theme until every star lights up. Swipe a set right, or tap ✏️ inside it, to rename it.")
             }
 
             if store.sets.isEmpty {
@@ -84,6 +84,15 @@ struct WordSetsView: View {
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                newName = set.name
+                                renaming = set
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+                            .tint(.blue)
                         }
                     }
                 }
