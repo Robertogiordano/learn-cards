@@ -220,7 +220,8 @@ struct VerbEditView: View {
 struct ReviewVerbsView: View {
     /// Verbs on the photo that were already saved and were not conjugated again.
     let skipped: [String]
-    let onSaved: (Int) -> Void
+    /// Verbs saved and the verb set created, if any.
+    let onSaved: (Int, VerbSet?) -> Void
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -228,8 +229,12 @@ struct ReviewVerbsView: View {
     @State private var items: [ReviewVerbItem]
     @State private var editing: ReviewVerbItem?
     @State private var didMarkDuplicates = false
+    @AppStorage(SettingsKey.reviewCreatesVerbSet) private var createsSet = false
+    @State private var setName = VerbSetStore.shared.nextName
+    /// Already saved verbs of the photo left out of the set.
+    @State private var skippedOut: Set<String> = []
 
-    init(verbs: [VerbEntry], skipped: [String] = [], onSaved: @escaping (Int) -> Void) {
+    init(verbs: [VerbEntry], skipped: [String] = [], onSaved: @escaping (Int, VerbSet?) -> Void) {
         self.skipped = skipped
         self.onSaved = onSaved
         _items = State(initialValue: verbs.map { ReviewVerbItem(entry: $0, isSelected: true) })
@@ -241,15 +246,61 @@ struct ReviewVerbsView: View {
 
     private var selectedCount: Int { items.filter { $0.isSelected }.count }
 
+    /// Saved verbs the photo named but that were not conjugated again, by key.
+    private var skippedVerbs: [Verb] {
+        let existing = existingByKey
+        var seen = Set<String>()
+        return skipped.compactMap { existing[PhraseChecker.key($0)] }.filter { seen.insert($0.dedupeKey).inserted }
+    }
+
+    /// Ids of the verbs the set will hold: existing verbs for duplicates and skipped ones, the new verb
+    /// for selected ones; new verbs left unselected are not saved, so they stay out.
+    private var setVerbIDs: [UUID] {
+        guard createsSet else { return [] }
+        let existing = existingByKey
+        var seen = Set<UUID>()
+        let fromItems = items.compactMap { item -> UUID? in
+            guard item.inSet else { return nil }
+            if let verb = existing[item.entry.dedupeKey] { return verb.id }
+            return item.isSelected ? item.entry.id : nil
+        }
+        let fromSkipped = skippedVerbs.filter { !skippedOut.contains($0.dedupeKey) }.map(\.id)
+        return (fromItems + fromSkipped).filter { seen.insert($0).inserted }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Toggle("Also create a verb set", isOn: $createsSet)
+                    if createsSet {
+                        TextField("Set name", text: $setName)
+                    }
+                } footer: {
+                    if createsSet {
+                        Text("Every verb of the photo goes in the set (\(setVerbIDs.count) now), the ones already saved too; tap the stack icon to leave one out. New verbs you deselect are not saved, so they stay out.")
+                    }
+                }
                 if !skipped.isEmpty {
                     Section {
                         Label("\(skipped.count) already in your vocabulary, not conjugated again: \(skipped.joined(separator: ", "))",
                               systemImage: "checkmark.circle")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                        if createsSet {
+                            ForEach(skippedVerbs) { verb in
+                                HStack {
+                                    Text(verb.emoji)
+                                    Text(verb.infinitive)
+                                    Spacer()
+                                    setToggle(isIn: !skippedOut.contains(verb.dedupeKey), canJoin: true) {
+                                        if !skippedOut.insert(verb.dedupeKey).inserted {
+                                            skippedOut.remove(verb.dedupeKey)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 ForEach(items) { item in
@@ -281,6 +332,16 @@ struct ReviewVerbsView: View {
 
                         Spacer(minLength: 0)
 
+                        if createsSet {
+                            // A new verb that will not be saved cannot be in the set.
+                            setToggle(isIn: item.inSet,
+                                      canJoin: item.isSelected || existingByKey[item.entry.dedupeKey] != nil) {
+                                if let index = items.firstIndex(where: { $0.id == item.id }) {
+                                    items[index].inSet.toggle()
+                                }
+                            }
+                        }
+
                         Button {
                             editing = item
                         } label: {
@@ -291,7 +352,7 @@ struct ReviewVerbsView: View {
                 }
                 .onDelete { items.remove(atOffsets: $0) }
             }
-            .navigationTitle(items.count == 1 ? "1 verb found" : "\(items.count) verbs found")
+            .navigationTitle(items.isEmpty ? "Verbs found" : items.count == 1 ? "1 new verb" : "\(items.count) new verbs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -299,7 +360,7 @@ struct ReviewVerbsView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save (\(selectedCount))", action: save)
-                        .disabled(selectedCount == 0)
+                        .disabled(selectedCount == 0 && setVerbIDs.isEmpty)
                 }
             }
             .sheet(item: $editing) { item in
@@ -313,6 +374,16 @@ struct ReviewVerbsView: View {
         }
     }
 
+    private func setToggle(isIn: Bool, canJoin: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: isIn ? "square.stack.fill" : "square.stack")
+                .foregroundStyle(Color.accentColor)
+                .opacity(canJoin ? 1 : 0.3)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(isIn ? "In the verb set" : "Not in the verb set")
+    }
+
     private func deselectDuplicates() {
         guard !didMarkDuplicates else { return }
         didMarkDuplicates = true
@@ -324,6 +395,7 @@ struct ReviewVerbsView: View {
 
     private func save() {
         let existing = existingByKey
+        let memberIDs = setVerbIDs
         var count = 0
         for item in items where item.isSelected {
             if let verb = existing[item.entry.dedupeKey] {
@@ -334,7 +406,8 @@ struct ReviewVerbsView: View {
             count += 1
         }
         try? context.save()
-        onSaved(count)
+        let set = memberIDs.isEmpty ? nil : VerbSetStore.shared.create(name: setName, verbIDs: memberIDs)
+        onSaved(count, set)
         dismiss()
     }
 }
@@ -342,6 +415,8 @@ struct ReviewVerbsView: View {
 struct ReviewVerbItem: Identifiable {
     var entry: VerbEntry
     var isSelected: Bool
+    /// Goes in the verb set made from this batch, when there is one.
+    var inSet = true
 
     var id: UUID { entry.id }
 }

@@ -28,6 +28,8 @@ enum SettingsKey {
     static let phraseImportVerbs = "phraseImportVerbs"
     /// The word review also creates a word set from the extracted words.
     static let reviewCreatesSet = "reviewCreatesSet"
+    /// The verb review also creates a verb set from the extracted verbs.
+    static let reviewCreatesVerbSet = "reviewCreatesVerbSet"
     /// Model for grammar pills; empty = the extraction model.
     static let grammarModel = "grammarModel"
 }

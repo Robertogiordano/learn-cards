@@ -15,14 +15,11 @@ public struct WordSet: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-public enum WordSetPicker {
-    public static let sizes = [10, 20, 30]
-    public static let defaultSize = 20
-
-    /// Draws `count` distinct words at random, favouring new and weak ones:
-    /// a word nobody has studied weighs four times one mastered in every area.
-    public static func pick<R: RandomNumberGenerator>(_ words: [PathWord], count: Int, using rng: inout R) -> [UUID] {
-        var pool = words.map { (id: $0.id, weight: weight(of: $0)) }
+/// Draws distinct ids at random, each in proportion to its weight.
+public enum WeightedPicker {
+    public static func pick<R: RandomNumberGenerator>(_ items: [(id: UUID, weight: Double)], count: Int,
+                                                      using rng: inout R) -> [UUID] {
+        var pool = items.filter { $0.weight > 0 }
         var picked: [UUID] = []
         while picked.count < count, !pool.isEmpty {
             let total = pool.reduce(0) { $0 + $1.weight }
@@ -38,6 +35,25 @@ public enum WordSetPicker {
             picked.append(pool.remove(at: index).id)
         }
         return picked
+    }
+
+    /// "Set 1", "Set 2"…: the first number not taken.
+    public static func nextName(prefix: String, existing: [String]) -> String {
+        let taken = Set(existing)
+        var number = 1
+        while taken.contains("\(prefix) \(number)") { number += 1 }
+        return "\(prefix) \(number)"
+    }
+}
+
+public enum WordSetPicker {
+    public static let sizes = [10, 20, 30]
+    public static let defaultSize = 20
+
+    /// Draws `count` distinct words at random, favouring new and weak ones:
+    /// a word nobody has studied weighs four times one mastered in every area.
+    public static func pick<R: RandomNumberGenerator>(_ words: [PathWord], count: Int, using rng: inout R) -> [UUID] {
+        WeightedPicker.pick(words.map { (id: $0.id, weight: weight(of: $0)) }, count: count, using: &rng)
     }
 
     public static func pick(_ words: [PathWord], count: Int) -> [UUID] {
@@ -56,10 +72,7 @@ public enum WordSetPicker {
 
     /// "Set 1", "Set 2"…: the first number not taken.
     public static func nextName(existing: [String]) -> String {
-        let taken = Set(existing)
-        var number = 1
-        while taken.contains("Set \(number)") { number += 1 }
-        return "Set \(number)"
+        WeightedPicker.nextName(prefix: "Set", existing: existing)
     }
 }
 

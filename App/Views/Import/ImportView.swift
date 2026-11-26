@@ -178,8 +178,13 @@ struct ImportView: View {
                         }
                     }
                 case .verbs(let batch):
-                    ReviewVerbsView(verbs: batch.verbs, skipped: batch.skipped) { count in
-                        addSaved(count == 1 ? "1 verb saved" : "\(count) verbs saved")
+                    ReviewVerbsView(verbs: batch.verbs, skipped: batch.skipped) { count, set in
+                        if count > 0 {
+                            addSaved(count == 1 ? "1 verb saved" : "\(count) verbs saved")
+                        }
+                        if let set {
+                            addSaved("set “\(set.name)” with \(set.verbIDs.count) verbs")
+                        }
                     }
                 }
             }
@@ -329,7 +334,7 @@ struct ImportView: View {
     /// What the verb import found: new verbs to review, or how many on the photo were all already saved.
     private enum VerbOutcome {
         case new(ExtractedVerbs)
-        case allKnown(Int)
+        case allKnown([String])
     }
 
     /// Infinitives first: only the verbs not yet saved get conjugated.
@@ -337,7 +342,7 @@ struct ImportView: View {
                                         onConjugating: (Int) -> Void = { _ in }) async throws -> VerbOutcome {
         let infinitives = try await client.extractVerbInfinitives(fromJPEG: jpeg)
         let missing = VerbExtractionPlan.missing(infinitives, existingKeys: savedKeys)
-        guard !missing.isEmpty else { return .allKnown(infinitives.count) }
+        guard !missing.isEmpty else { return .allKnown(infinitives) }
         onConjugating(missing.count)
         let skipped = infinitives.filter { !missing.contains($0) }
         return .new(ExtractedVerbs(verbs: try await client.conjugateVerbs(missing), skipped: skipped))
@@ -363,7 +368,13 @@ struct ImportView: View {
         switch outcome {
         case .new(let batch):
             found.append(.verbs(batch))
-        case .allKnown(let count):
+        case .allKnown(let infinitives):
+            // Nothing to conjugate, but the review still lets the learner make a set of them.
+            if UserDefaults.standard.bool(forKey: SettingsKey.reviewCreatesVerbSet), !infinitives.isEmpty {
+                found.append(.verbs(ExtractedVerbs(verbs: [], skipped: infinitives)))
+                return
+            }
+            let count = infinitives.count
             notices.append(count == 1
                 ? "The verb in the photo is already in your vocabulary"
                 : "All \(count) verbs in the photo are already in your vocabulary")

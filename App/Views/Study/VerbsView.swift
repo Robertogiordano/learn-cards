@@ -47,9 +47,17 @@ struct VerbsRow: View {
 }
 
 /// Present-tense practice: pick a group (or all), then a kind of exercise.
+/// With a verb set, only the verbs of that set.
 struct VerbsView: View {
+    /// The verb set trained; nil for every verb.
+    private let setID: UUID?
+
     @Environment(\.modelContext) private var context
-    @Query private var verbs: [Verb]
+    @Query private var allVerbs: [Verb]
+    @ObservedObject private var setStore = VerbSetStore.shared
+    @State private var isEditingSet = false
+    @State private var isRenaming = false
+    @State private var newName = ""
     @Query private var words: [Word]
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @State private var group: VerbGroup?
@@ -59,6 +67,19 @@ struct VerbsView: View {
     private static let sessionLength = 10
     /// New verbs per session when there are reviews too: a few at a time stick better.
     private static let newPerSession = 4
+
+    init(setID: UUID? = nil) {
+        self.setID = setID
+    }
+
+    private var verbSet: VerbSet? { setID.flatMap { setStore.set($0) } }
+
+    /// The verbs trained here: the set's, or all of them.
+    private var verbs: [Verb] {
+        guard let setID else { return allVerbs }
+        let ids = Set(setStore.set(setID)?.verbIDs ?? [])
+        return allVerbs.filter { ids.contains($0.id) }
+    }
 
     private var scoped: [Verb] {
         group.map { selected in verbs.filter { $0.section == selected } } ?? verbs
@@ -72,7 +93,13 @@ struct VerbsView: View {
         let new = scoped.filter { $0.srs.isNew }.count
 
         return List {
-            if verbs.isEmpty {
+            if verbs.isEmpty, setID != nil {
+                ContentUnavailableView(
+                    "No verbs in this set",
+                    systemImage: "square.stack",
+                    description: Text("Tap ✏️ to choose the verbs of this set.")
+                )
+            } else if verbs.isEmpty {
                 ContentUnavailableView(
                     "No verbs yet",
                     systemImage: "text.word.spacing",
@@ -123,8 +150,43 @@ struct VerbsView: View {
             }
         }
         .listSectionSpacing(.compact)
-        .navigationTitle("Verbs")
+        .navigationTitle(verbSet?.name ?? "Verbs")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let verbSet {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            isEditingSet = true
+                        } label: {
+                            Label("Choose verbs", systemImage: "checklist")
+                        }
+                        Button {
+                            newName = verbSet.name
+                            isRenaming = true
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                    } label: {
+                        Label("Edit set", systemImage: "pencil")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $isEditingSet) {
+            if let verbSet {
+                VerbSetEditorView(title: verbSet.name, name: nil, selected: Set(verbSet.verbIDs)) { _, ids in
+                    setStore.setVerbs(verbSet.id, to: ids)
+                }
+            }
+        }
+        .alert("Rename set", isPresented: $isRenaming) {
+            TextField("Name", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                if let setID { setStore.rename(setID, to: newName.trimmed) }
+            }
+        }
         .fullScreenCover(item: $activeSession) { session in
             SessionView(session: session)
         }
@@ -206,7 +268,7 @@ struct VerbsView: View {
             let ids = SessionPlanner.select(candidates, now: .now, limit: Self.sessionLength, includeNotDue: true,
                                              newLimit: Self.newPerSession)
             guard !ids.isEmpty else { return }
-            activeSession = StudySession(steps: ids.map { .verb($0) }, allWords: words, allVerbs: verbs,
+            activeSession = StudySession(steps: ids.map { .verb($0) }, allWords: words, allVerbs: allVerbs,
                                          kindPolicy: .adaptive, verbPolicy: policy,
                                          allowSpeaking: allowSpeaking, context: context)
         }

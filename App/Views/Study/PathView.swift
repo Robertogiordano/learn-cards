@@ -136,11 +136,16 @@ struct PathView: View {
                 }
             }
 
-            Section("Word sets") {
+            Section("Sets") {
                 NavigationLink {
                     WordSetsView()
                 } label: {
                     WordSetsRow()
+                }
+                NavigationLink {
+                    VerbSetsView()
+                } label: {
+                    VerbSetsRow()
                 }
             }
 

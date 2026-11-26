@@ -144,6 +144,8 @@ public struct Backup: Codable, Sendable {
     public var activity: ActivityStats?
     /// Random word sets trained like themes; absent in older backups.
     public var wordSets: [WordSet]?
+    /// Verb sets, random or hand-picked; absent in older backups.
+    public var verbSets: [VerbSet]?
     /// Grammar pills with their lessons and progress; absent in older backups.
     public var grammarPills: [GrammarPill]?
     /// The learner's own notes; absent in older backups.
@@ -151,7 +153,7 @@ public struct Backup: Codable, Sendable {
 
     public init(schemaVersion: Int = Backup.currentSchemaVersion, exportedAt: Date, words: [BackupWord],
                 numbers: NumberStats? = nil, phrases: [BackupPhrase]? = nil, verbs: [BackupVerb]? = nil,
-                activity: ActivityStats? = nil, wordSets: [WordSet]? = nil, grammarPills: [GrammarPill]? = nil,
+                activity: ActivityStats? = nil, wordSets: [WordSet]? = nil, verbSets: [VerbSet]? = nil, grammarPills: [GrammarPill]? = nil,
                 notes: [StudyNote]? = nil) {
         self.schemaVersion = schemaVersion
         self.exportedAt = exportedAt
@@ -161,6 +163,7 @@ public struct Backup: Codable, Sendable {
         self.verbs = verbs
         self.activity = activity
         self.wordSets = wordSets
+        self.verbSets = verbSets
         self.grammarPills = grammarPills
         self.notes = notes
     }

@@ -28,6 +28,7 @@ enum BackupService {
                                              verbs: verbs.map(\.backup),
                                              activity: ActivityStore.shared.stats,
                                              wordSets: WordSetStore.shared.sets,
+                                             verbSets: VerbSetStore.shared.sets,
                                              grammarPills: GrammarPillStore.shared.pills,
                                              notes: NoteStore.shared.notes))
     }
@@ -85,6 +86,9 @@ enum BackupService {
         if let wordSets = pending.backup.wordSets {
             WordSetStore.shared.merge(wordSets)
         }
+        if let verbSets = pending.backup.verbSets {
+            VerbSetStore.shared.merge(verbSets)
+        }
         if let pills = pending.backup.grammarPills {
             GrammarPillStore.shared.merge(pills)
         }
@@ -120,6 +124,7 @@ enum BackupService {
         NumberStatsStore.shared.replace(with: backup.numbers ?? NumberStats())
         ActivityStore.shared.replace(with: backup.activity ?? ActivityStats())
         WordSetStore.shared.replace(with: backup.wordSets ?? [])
+        VerbSetStore.shared.replace(with: backup.verbSets ?? [])
         GrammarPillStore.shared.replace(with: backup.grammarPills ?? [])
         NoteStore.shared.replace(with: backup.notes ?? [])
     }
