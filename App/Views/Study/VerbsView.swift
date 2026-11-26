@@ -147,6 +147,10 @@ struct VerbsView: View {
 
                 tileSection("Translation", kinds: VerbExerciseKind.translationKinds, mastery: kinds, streaks: streaks)
                 tileSection("Present tense conjugation", kinds: VerbExerciseKind.conjugationKinds, mastery: kinds, streaks: streaks)
+
+                if let verbSet {
+                    setVerbsSection(verbSet, verbs: scoped)
+                }
             }
         }
         .listSectionSpacing(.compact)
@@ -216,6 +220,46 @@ struct VerbsView: View {
                 Text("\(Int((VerbExercises.mastery(streaks, kinds: kinds) * 100).rounded()))%")
                     .monospacedDigit()
             }
+        }
+    }
+
+    /// The verbs of the set, with their progress; swipe to take one out of the set.
+    private func setVerbsSection(_ set: VerbSet, verbs: [Verb]) -> some View {
+        Section {
+            ForEach(verbs.sorted { $0.infinitive.localizedCompare($1.infinitive) == .orderedAscending }) { verb in
+                HStack(spacing: 12) {
+                    Text(verb.emoji)
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verb.infinitive)
+                            .font(.headline)
+                        Text(verb.english)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("\(Int((VerbExercises.mastery([verb.kindStreaks]) * 100).rounded()))%")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .swipeActions {
+                    Button(role: .destructive) {
+                        setStore.setVerbs(set.id, to: set.verbIDs.filter { $0 != verb.id })
+                    } label: {
+                        Label("Remove", systemImage: "minus.circle")
+                    }
+                }
+            }
+        } header: {
+            HStack {
+                Text("Verbs in this set")
+                Spacer()
+                Button("Choose") { isEditingSet = true }
+                    .font(.caption)
+                    .textCase(nil)
+            }
+        } footer: {
+            Text("Swipe a verb left to take it out of the set; it stays in your vocabulary.")
         }
     }
 
