@@ -8,6 +8,11 @@ public enum Article: String, Codable, CaseIterable, Hashable, Sendable {
         self == .die ? "eine" : "ein"
     }
 
+    /// The indefinite article in the accusative: einen, eine, ein.
+    public var accusativeIndefinite: String {
+        self == .der ? "einen" : indefinite
+    }
+
     public var genderLabel: String {
         switch self {
         case .der: return "maskulin"

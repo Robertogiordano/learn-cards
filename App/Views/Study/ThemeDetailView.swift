@@ -238,6 +238,8 @@ struct ExerciseTile: View {
     /// nil for options that mix several kinds.
     let value: Double?
     let color: Color
+    /// Shown instead of the bar when there is no percentage.
+    var caption: String = "all exercises"
     let action: () -> Void
 
     var body: some View {
@@ -262,7 +264,7 @@ struct ExerciseTile: View {
                 if let value {
                     ProgressBar(value: value, color: color)
                 } else {
-                    Text("all exercises")
+                    Text(caption)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

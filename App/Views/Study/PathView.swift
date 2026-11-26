@@ -119,6 +119,16 @@ struct PathView: View {
                 } label: {
                     CompoundsRow()
                 }
+                NavigationLink {
+                    JaNeinDochView()
+                } label: {
+                    JaNeinDochRow()
+                }
+                NavigationLink {
+                    WordOrderView()
+                } label: {
+                    WordOrderRow()
+                }
             }
 
             Section("Word sets") {

@@ -138,7 +138,7 @@ private struct PhrasePromptCard: View {
 }
 
 /// Tap the tiles in order; tap a placed tile to put it back.
-private struct ReorderView: View {
+struct ReorderView: View {
     let tiles: [String]
     let isAnswered: Bool
     let onSubmit: ([String]) -> Void
