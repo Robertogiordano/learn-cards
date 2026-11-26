@@ -5,6 +5,7 @@ import SwiftUI
 /// The six forms side by side: "ich fahre · du fährst …".
 struct ConjugationGrid: View {
     let verb: VerbEntry
+    var tense: VerbTense = .present
     var highlight: Person?
 
     var body: some View {
@@ -26,7 +27,7 @@ struct ConjugationGrid: View {
         HStack(spacing: 3) {
             Text(person.pronoun)
                 .foregroundStyle(.secondary)
-            Text(verb.form(for: person))
+            Text(verb.form(for: person, tense: tense))
                 .fontWeight(person == highlight ? .bold : .regular)
         }
     }
@@ -57,6 +58,14 @@ struct VerbSummary: View {
                     }
                 }
                 ConjugationGrid(verb: verb)
+                if verb.hasPreterite {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Prät.")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Color.preterite)
+                        ConjugationGrid(verb: verb, tense: .preterite)
+                    }
+                }
                 if let note = verb.note {
                     Text(note)
                         .font(.caption)
@@ -86,6 +95,7 @@ struct VerbEditView: View {
         self.onSave = onSave
         var entry = entry
         while entry.forms.count < Person.allCases.count { entry.forms.append("") }
+        while entry.preterite.count < Person.allCases.count { entry.preterite.append("") }
         if entry.group == .separable {
             // Saved before separable became a flag of its own.
             entry.separablePrefix = entry.separablePrefix
@@ -97,9 +107,12 @@ struct VerbEditView: View {
         _prefixText = State(initialValue: entry.separablePrefix ?? "")
     }
 
+    /// The preterite may stay empty (its games skip the verb), but not half filled in.
     private var isValid: Bool {
-        !draft.infinitive.trimmed.isEmpty && !draft.english.trimmed.isEmpty
+        let preteriteFilled = draft.preterite.filter { !$0.trimmed.isEmpty }.count
+        return !draft.infinitive.trimmed.isEmpty && !draft.english.trimmed.isEmpty
             && draft.forms.allSatisfy { !$0.trimmed.isEmpty }
+            && (preteriteFilled == 0 || preteriteFilled == Person.allCases.count)
     }
 
     var body: some View {
@@ -121,7 +134,7 @@ struct VerbEditView: View {
                 } header: {
                     Text("Verb")
                 } footer: {
-                    Text("Type the verb, then “Fill in with AI” adds translation, present tense, group, separable prefix, note and emoji. Check them before saving.")
+                    Text("Type the verb, then “Fill in with AI” adds translation, present tense, preterite, group, separable prefix, note and emoji. Check them before saving.")
                 }
                 Section {
                     ForEach(Person.allCases, id: \.self) { person in
@@ -135,9 +148,25 @@ struct VerbEditView: View {
                         }
                     }
                 } header: {
-                    Text("Present tense")
+                    Text("Present tense · Präsens")
                 } footer: {
                     Text("Separable verbs with the prefix at the end (“stehe auf”), reflexive ones with the pronoun (“wasche mich”).")
+                }
+                Section {
+                    ForEach(Person.allCases, id: \.self) { person in
+                        HStack {
+                            Text(person.label)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 80, alignment: .leading)
+                            TextField(person.label, text: $draft.preterite[person.rawValue])
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                    }
+                } header: {
+                    Text("Preterite · Präteritum")
+                } footer: {
+                    Text("“fuhr, fuhrst, fuhr…”, “stand auf”. Leave all six empty if you don't know them yet: the verb then skips the preterite games.")
                 }
                 Section {
                     HStack {
@@ -193,6 +222,7 @@ struct VerbEditView: View {
                 draft.infinitive = found.infinitive
                 draft.english = found.english
                 draft.forms = found.forms
+                if found.hasPreterite { draft.preterite = found.preterite }
                 draft.group = found.group
                 draft.emoji = found.emoji
                 noteText = found.note ?? ""
@@ -208,6 +238,8 @@ struct VerbEditView: View {
         entry.infinitive = draft.infinitive.trimmed
         entry.english = draft.english.trimmed
         entry.forms = draft.forms.map(\.trimmed)
+        let preterite = draft.preterite.map(\.trimmed)
+        entry.preterite = preterite.allSatisfy(\.isEmpty) ? [] : preterite
         entry.note = noteText.trimmed.isEmpty ? nil : noteText.trimmed
         entry.separablePrefix = SeparableVerbs.clean(prefixText)
         entry.emoji = entry.emoji.trimmed.first.map(String.init) ?? "🏃"

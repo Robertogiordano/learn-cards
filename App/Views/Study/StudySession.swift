@@ -49,7 +49,10 @@ struct VerbQuestion: Identifiable {
     /// Options for chooseForm.
     let options: [String]
 
-    var form: String { entry.form(for: person) }
+    /// The tense asked; the meaning games use the present for the table they show.
+    var tense: VerbTense { kind.tense ?? .present }
+
+    var form: String { entry.form(for: person, tense: tense) }
 }
 
 /// How phrase questions pick their kind of exercise.
@@ -295,16 +298,19 @@ final class StudySession: ObservableObject, Identifiable {
         afterSubmit(first: !graded.contains(currentStep), verdict: verdict) {
             let entry = verbQuestion.entry
             let expected: String
-            switch verbQuestion.kind {
+            let tense = verbQuestion.tense
+            switch verbQuestion.kind.base {
             case .translateEnglish: expected = entry.english
             case .translateChoice, .translateGerman, .translateSpeak: expected = entry.infinitive
-            case .fullTable: expected = entry.forms.joined(separator: ", ")
-            case .whichPerson: expected = entry.persons(with: verbQuestion.form).map(\.label).joined(separator: " / ")
+            case .fullTable: expected = entry.forms(in: tense).joined(separator: ", ")
+            case .whichPerson:
+                expected = entry.persons(with: verbQuestion.form, tense: tense).map(\.label).joined(separator: " / ")
             default: expected = "\(verbQuestion.person.pronoun) \(verbQuestion.form)"
             }
+            let tenseNote = tense == .preterite ? " (\(tense.germanName))" : ""
             let prompt = verbQuestion.kind.isTranslation
                 ? (verbQuestion.kind == .translateEnglish ? entry.infinitive : entry.english)
-                : "\(verbQuestion.person.label) · \(entry.infinitive)"
+                : "\(verbQuestion.person.label) · \(entry.infinitive)\(tenseNote)"
             return ErrorRecord(date: .now, domain: .verb, itemID: entry.id, exercise: "verb.\(verbQuestion.kind.rawValue)",
                                prompt: prompt, given: given, expected: expected, theme: entry.group.label)
         }
@@ -618,22 +624,25 @@ final class StudySession: ObservableObject, Identifiable {
 
     private func makeVerbQuestion(for verb: Verb, forced: VerbExerciseKind? = nil) -> VerbQuestion {
         let entry = verb.entry
-        let kinds = VerbExerciseKind.allCases.filter { allowSpeaking || !$0.isSpeaking }
+        let kinds = VerbExerciseKind.allCases.filter { (allowSpeaking || !$0.isSpeaking) && entry.supports($0) }
         var kind: VerbExerciseKind
         let policy: VerbPolicy = forced.map { allowSpeaking || !$0.isSpeaking ? .fixed($0) : verbPolicy } ?? verbPolicy
         switch policy {
         case .adaptive:
-            kind = VerbExercises.kind(level: verb.streak, allowSpeaking: allowSpeaking, using: &rng)
+            kind = VerbExercises.kind(level: verb.streak, allowSpeaking: allowSpeaking,
+                                      hasPreterite: entry.hasPreterite, using: &rng)
         case .mixed:
             kind = kinds.randomElement(using: &rng) ?? .typeForm
         case .fixed(let chosen):
             kind = chosen
         }
+        // A verb without its preterite yet plays the same game in the present.
+        if !entry.supports(kind) { kind = kind.inTense(.present) }
         let person = Person.allCases.randomElement(using: &rng) ?? .ich
         var options: [String] = []
-        switch kind {
+        switch kind.base {
         case .chooseForm:
-            options = VerbExercises.options(for: entry, person: person, using: &rng)
+            options = VerbExercises.options(for: entry, person: person, tense: kind.tense ?? .present, using: &rng)
         case .translateChoice:
             // Distractors come from all the session's verbs; with too few, type instead.
             let pool = verbsByID.values.map(\.entry)
@@ -651,8 +660,7 @@ final class StudySession: ObservableObject, Identifiable {
     private func recordVerb(_ verdict: Verdict, verb: Verb, kind: VerbExerciseKind) {
         let now = Date()
         if verb.srs.isDue(at: now) {
-            let recognition = kind == .chooseForm || kind == .whichPerson || kind == .translateChoice
-            let grade = ReviewGrade.from(verdict: verdict, kind: recognition ? .multipleChoice : .typeGerman,
+            let grade = ReviewGrade.from(verdict: verdict, kind: kind.isRecognition ? .multipleChoice : .typeGerman,
                                          responseTime: now.timeIntervalSince(shownAt))
             verb.srs = SRS.review(verb.srs, grade: grade, now: now)
         }

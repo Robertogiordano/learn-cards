@@ -8,6 +8,7 @@ struct VerbExerciseView: View {
 
     private var isAnswered: Bool { session.feedback != nil }
     private var verb: VerbEntry { question.entry }
+    private var tense: VerbTense { question.tense }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -15,34 +16,36 @@ struct VerbExerciseView: View {
 
             VerbPromptCard(question: question, isAnswered: isAnswered)
 
-            switch question.kind {
+            switch question.kind.base {
             case .chooseForm:
                 OptionGrid(options: question.options, correct: question.options.firstIndex(of: question.form),
                            isAnswered: isAnswered) { index in
                     let chosen = question.options[index]
-                    session.submitVerb(VerbExercises.check(chosen, verb: verb, person: question.person), given: chosen)
+                    session.submitVerb(VerbExercises.check(chosen, verb: verb, person: question.person, tense: tense),
+                                       given: chosen)
                 }
             case .whichPerson:
                 let labels = Person.allCases.map(\.label)
-                let right = verb.persons(with: question.form)
+                let right = verb.persons(with: question.form, tense: tense)
                 OptionGrid(options: labels, correct: Person.allCases.firstIndex(of: question.person),
                            alsoCorrect: Set(right.map(\.rawValue)), isAnswered: isAnswered) { index in
                     let chosen = Person.allCases[index]
-                    session.submitVerb(VerbExercises.checkPerson(chosen, form: question.form, verb: verb), given: chosen.label)
+                    session.submitVerb(VerbExercises.checkPerson(chosen, form: question.form, verb: verb, tense: tense),
+                                       given: chosen.label)
                 }
             case .typeForm:
                 FormTypingView(persons: [question.person], isAnswered: isAnswered) { answers in
-                    session.submitVerb(VerbExercises.check(answers[0], verb: verb, person: question.person),
+                    session.submitVerb(VerbExercises.check(answers[0], verb: verb, person: question.person, tense: tense),
                                        given: answers[0])
                 }
             case .fullTable:
                 FormTypingView(persons: Person.allCases, isAnswered: isAnswered) { answers in
-                    session.submitVerb(VerbExercises.checkTable(answers, verb: verb),
+                    session.submitVerb(VerbExercises.checkTable(answers, verb: verb, tense: tense),
                                        given: answers.joined(separator: ", "))
                 }
             case .speak:
                 SpeechAnswerView(hint: "Say “\(question.person.pronoun) …”", isAnswered: isAnswered) { transcripts in
-                    session.submitVerb(VerbExercises.checkSpoken(transcripts, verb: verb, person: question.person),
+                    session.submitVerb(VerbExercises.checkSpoken(transcripts, verb: verb, person: question.person, tense: tense),
                                        given: transcripts.first ?? "—")
                 }
             case .translateChoice:
@@ -59,7 +62,7 @@ struct VerbExerciseView: View {
                 SingleAnswerField(placeholder: "In English", isAnswered: isAnswered) { text in
                     session.submitVerb(VerbExercises.checkEnglish(text, verb: verb), given: text)
                 }
-            case .translateSpeak:
+            default:
                 SpeechAnswerView(hint: "Say the infinitive", isAnswered: isAnswered) { transcripts in
                     session.submitVerb(VerbExercises.checkSpokenInfinitive(transcripts, verb: verb),
                                        given: transcripts.first ?? "—")
@@ -88,16 +91,17 @@ private struct VerbPromptCard: View {
     private var verb: VerbEntry { question.entry }
 
     private var instruction: String {
-        switch question.kind {
-        case .chooseForm: return "Choose the right form"
-        case .typeForm: return "Conjugate in the present"
-        case .fullTable: return "Conjugate for every person"
-        case .whichPerson: return "Which person is it?"
-        case .speak: return "Say pronoun and verb"
+        let past = question.kind.tense == .preterite
+        switch question.kind.base {
+        case .chooseForm: return past ? "Choose the preterite form" : "Choose the right form"
+        case .typeForm: return past ? "Conjugate in the preterite" : "Conjugate in the present"
+        case .fullTable: return past ? "Preterite for every person" : "Conjugate for every person"
+        case .whichPerson: return past ? "Which person is it? (preterite)" : "Which person is it?"
+        case .speak: return past ? "Say pronoun and verb in the preterite" : "Say pronoun and verb"
         case .translateChoice: return "Choose the German verb"
         case .translateGerman: return "Type the verb in German"
         case .translateEnglish: return "Type it in English"
-        case .translateSpeak: return "Say the verb in German"
+        default: return "Say the verb in German"
         }
     }
 
@@ -112,7 +116,15 @@ private struct VerbPromptCard: View {
                 Text(verb.emoji)
                     .font(.system(size: 52))
             }
-            switch question.kind {
+            if question.kind.tense == .preterite {
+                Text(VerbTense.preterite.germanName.uppercased())
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .foregroundStyle(.white)
+                    .background(Capsule().fill(Color.preterite))
+            }
+            switch question.kind.base {
             case .translateChoice, .translateGerman, .translateSpeak:
                 Text(verb.english)
                     .font(.title.bold())
@@ -136,7 +148,7 @@ private struct VerbPromptCard: View {
                     .font(.title.bold())
                 Text(verb.english)
                     .foregroundStyle(.secondary)
-            case .chooseForm, .typeForm, .speak:
+            default:
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(question.person.label)
                         .font(.title2.weight(.semibold))
@@ -326,15 +338,13 @@ private struct VerbFeedbackPanel: View {
 
     private var spoken: String {
         if question.kind.isTranslation { return verb.infinitive }
-        return question.kind == .fullTable
-            ? Person.allCases.map { "\($0.pronoun) \(verb.form(for: $0))" }.joined(separator: ", ")
+        return question.kind.base == .fullTable
+            ? Person.allCases.map { "\($0.pronoun) \(verb.form(for: $0, tense: question.tense))" }.joined(separator: ", ")
             : "\(question.person.pronoun) \(question.form)"
     }
 
     /// Choice games: the right option is already highlighted, no "I was right".
-    private var isChoice: Bool {
-        [.chooseForm, .whichPerson, .translateChoice].contains(question.kind)
-    }
+    private var isChoice: Bool { question.kind.isRecognition }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -362,7 +372,7 @@ private struct VerbFeedbackPanel: View {
                 }
                 Text(verb.english)
                     .foregroundStyle(.secondary)
-            } else if question.kind != .fullTable {
+            } else if question.kind.base != .fullTable {
                 HStack {
                     Text("\(question.person.pronoun) \(question.form)")
                         .font(.title3.bold())
@@ -374,7 +384,8 @@ private struct VerbFeedbackPanel: View {
                     .buttonStyle(.borderless)
                 }
             }
-            ConjugationGrid(verb: verb, highlight: question.kind == .fullTable || question.kind.isTranslation ? nil : question.person)
+            ConjugationGrid(verb: verb, tense: question.tense,
+                            highlight: question.kind.base == .fullTable || question.kind.isTranslation ? nil : question.person)
                 .padding(10)
                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             if let note = verb.note {

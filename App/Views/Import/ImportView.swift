@@ -238,7 +238,7 @@ struct ImportView: View {
         case .phrases:
             return "Take a photo of phrases, idioms or exercises like \"Wie heißt die Frage?\": I extract the phrases, fill in the missing parts and group them by category."
         case .verbs:
-            return "Take a photo of a page with verbs (lists, tables, texts): I extract each verb with its present tense."
+            return "Take a photo of a page with verbs (lists, tables, texts): I extract each verb with its present tense and preterite."
         }
     }
 
@@ -287,7 +287,33 @@ struct ImportView: View {
             case .words:
                 do {
                     let entries = try await wordClient.extractVocabulary(fromJPEG: jpeg)
-                    queueReviews([.words(ExtractedBatch(entries: entries))])
+                    // Verbs belong to the verb section, with their tables: only the new ones get conjugated.
+                    let verbEntries = entries.filter { $0.partOfSpeech == .verb }
+                    let kept = entries.filter { $0.partOfSpeech != .verb }
+                    var found: [PendingReview] = kept.isEmpty ? [] : [.words(ExtractedBatch(entries: kept))]
+                    if !verbEntries.isEmpty {
+                        let infinitives = verbEntries.map(\.german)
+                        let missing = VerbExtractionPlan.missing(infinitives, existingKeys: savedVerbKeys)
+                        if missing.isEmpty {
+                            notices.append(infinitives.count == 1
+                                ? "The verb on the photo is already in your verbs"
+                                : "The \(infinitives.count) verbs on the photo are already in your verbs")
+                        } else {
+                            progressTitle = missing.count == 1 ? "Conjugating 1 new verb…" : "Conjugating \(missing.count) new verbs…"
+                            do {
+                                let skipped = infinitives.filter { savedVerbKeys.contains(PhraseChecker.key($0)) }
+                                found.append(.verbs(ExtractedVerbs(verbs: try await wordClient.conjugateVerbs(missing),
+                                                                   skipped: skipped)))
+                            } catch {
+                                notices.append("Verbs: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+                    if found.isEmpty {
+                        errorMessage = "No new words on this photo."
+                    } else {
+                        queueReviews(found)
+                    }
                 } catch {
                     errorMessage = error.localizedDescription
                 }
@@ -315,8 +341,8 @@ struct ImportView: View {
                 }
                 switch await wordResult {
                 case .success(let entries)?:
-                    // Verbs go to their own section when that extraction runs too.
-                    let kept = alsoVerbs ? entries.filter { $0.partOfSpeech != .verb } : entries
+                    // Verbs never go among the words: they have their own section (and extraction).
+                    let kept = entries.filter { $0.partOfSpeech != .verb }
                     if !kept.isEmpty { found.append(.words(ExtractedBatch(entries: kept))) }
                 case .failure(let error)?: notices.append("Words: \(error.localizedDescription)")
                 case nil: break

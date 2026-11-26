@@ -140,7 +140,7 @@ struct VerbSetsView: View {
             }
             Spacer()
             if !verbs.isEmpty {
-                ProgressRing(value: VerbExercises.mastery(verbs.map(\.kindStreaks)), color: .verbs)
+                ProgressRing(value: VerbExercises.mastery(verbs.map(\.progress)), color: .verbs)
                     .frame(width: 38, height: 38)
             }
         }

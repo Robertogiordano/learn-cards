@@ -37,6 +37,29 @@ public enum Person: Int, CaseIterable, Codable, Hashable, Sendable {
     }
 }
 
+/// The tenses a verb is conjugated in.
+public enum VerbTense: String, CaseIterable, Codable, Hashable, Sendable {
+    /// Präsens: "ich fahre".
+    case present
+    /// Präteritum: "ich fuhr".
+    case preterite
+
+    public var label: String {
+        switch self {
+        case .present: return "Present"
+        case .preterite: return "Preterite"
+        }
+    }
+
+    /// The German name, as in the course books.
+    public var germanName: String {
+        switch self {
+        case .present: return "Präsens"
+        case .preterite: return "Präteritum"
+        }
+    }
+}
+
 public enum VerbGroup: String, CaseIterable, Codable, Hashable, Sendable {
     case regular, stemChanging, irregular, modal, separable, reflexive
 
@@ -82,6 +105,9 @@ public struct VerbEntry: Codable, Hashable, Identifiable, Sendable {
     /// Present tense, one form per person in `Person` order, as written after the pronoun:
     /// "fährst", "stehe auf", "wasche mich".
     public var forms: [String]
+    /// Preterite (Präteritum), one form per person in `Person` order, as written after the pronoun:
+    /// "fuhr", "fuhrst", "stand auf". Empty when not known yet.
+    public var preterite: [String]
     public var group: VerbGroup
     /// What to watch out for ("e → i in du and er", "separable: auf goes to the end").
     public var note: String?
@@ -91,12 +117,13 @@ public struct VerbEntry: Codable, Hashable, Identifiable, Sendable {
     public var separablePrefix: String?
 
     public init(id: UUID = UUID(), infinitive: String, english: String, forms: [String],
-                group: VerbGroup = .regular, note: String? = nil, emoji: String = "🏃",
+                preterite: [String] = [], group: VerbGroup = .regular, note: String? = nil, emoji: String = "🏃",
                 separablePrefix: String? = nil) {
         self.id = id
         self.infinitive = infinitive
         self.english = english
         self.forms = forms
+        self.preterite = preterite
         self.group = group
         self.note = note
         self.emoji = emoji
@@ -108,18 +135,39 @@ public struct VerbEntry: Codable, Hashable, Identifiable, Sendable {
     /// Where the verb is listed: separable verbs have their own section, whatever their group.
     public var section: VerbGroup { isSeparable ? .separable : group }
 
-    public func form(for person: Person) -> String {
-        person.rawValue < forms.count ? forms[person.rawValue] : ""
+    /// The six forms of a tense (empty when the preterite is not known).
+    public func forms(in tense: VerbTense) -> [String] {
+        switch tense {
+        case .present: return forms
+        case .preterite: return preterite
+        }
     }
 
-    /// Persons sharing a form ("macht": er/sie/es and ihr).
-    public func persons(with form: String) -> [Person] {
+    public func form(for person: Person, tense: VerbTense = .present) -> String {
+        let list = forms(in: tense)
+        return person.rawValue < list.count ? list[person.rawValue] : ""
+    }
+
+    /// Persons sharing a form ("macht": er/sie/es and ihr; "fuhr": ich and er/sie/es).
+    public func persons(with form: String, tense: VerbTense = .present) -> [Person] {
         let key = PhraseChecker.key(form)
-        return Person.allCases.filter { PhraseChecker.key(self.form(for: $0)) == key }
+        return Person.allCases.filter { PhraseChecker.key(self.form(for: $0, tense: tense)) == key }
     }
 
-    public var isComplete: Bool {
-        forms.count == Person.allCases.count && forms.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    public var isComplete: Bool { isComplete(.present) }
+
+    /// All six forms of the tense are filled in.
+    public func isComplete(_ tense: VerbTense) -> Bool {
+        let list = forms(in: tense)
+        return list.count == Person.allCases.count && list.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    /// The preterite is there: its exercises apply to this verb.
+    public var hasPreterite: Bool { isComplete(.preterite) }
+
+    /// Whether an exercise can be asked about this verb.
+    public func supports(_ kind: VerbExerciseKind) -> Bool {
+        kind.tense.map(isComplete) ?? true
     }
 
     public var dedupeKey: String { PhraseChecker.key(infinitive) }
@@ -144,9 +192,15 @@ public enum VerbExerciseKind: String, CaseIterable, Codable, Hashable, Sendable 
     case translateEnglish
     /// English prompt, say the infinitive.
     case translateSpeak
+    /// The same five conjugation games in the preterite.
+    case chooseFormPreterite
+    case typeFormPreterite
+    case fullTablePreterite
+    case whichPersonPreterite
+    case speakPreterite
 
     public var title: String {
-        switch self {
+        switch base {
         case .chooseForm: return "Choose the form"
         case .typeForm: return "Type the form"
         case .fullTable: return "Full table"
@@ -155,55 +209,92 @@ public enum VerbExerciseKind: String, CaseIterable, Codable, Hashable, Sendable 
         case .translateChoice: return "Choose the verb"
         case .translateGerman: return "Type EN → DE"
         case .translateEnglish: return "Type DE → EN"
-        case .translateSpeak: return "Say the verb"
+        default: return "Say the verb"
         }
     }
 
-    /// Meaning games, as for words; the others train the present tense.
-    public var isTranslation: Bool {
+    /// The tense trained; nil for the meaning games.
+    public var tense: VerbTense? {
         switch self {
-        case .translateChoice, .translateGerman, .translateEnglish, .translateSpeak: return true
-        default: return false
+        case .translateChoice, .translateGerman, .translateEnglish, .translateSpeak: return nil
+        case .chooseFormPreterite, .typeFormPreterite, .fullTablePreterite, .whichPersonPreterite, .speakPreterite:
+            return .preterite
+        default: return .present
         }
     }
 
-    public var isSpeaking: Bool { self == .speak || self == .translateSpeak }
+    /// The game this kind plays, whatever the tense: `.typeFormPreterite` plays `.typeForm`.
+    public var base: VerbExerciseKind {
+        switch self {
+        case .chooseFormPreterite: return .chooseForm
+        case .typeFormPreterite: return .typeForm
+        case .fullTablePreterite: return .fullTable
+        case .whichPersonPreterite: return .whichPerson
+        case .speakPreterite: return .speak
+        default: return self
+        }
+    }
+
+    /// The same game in another tense (meaning games stay as they are).
+    public func inTense(_ tense: VerbTense) -> VerbExerciseKind {
+        guard self.tense != nil else { return self }
+        return VerbExerciseKind.allCases.first { $0.base == base && $0.tense == tense } ?? self
+    }
+
+    /// Meaning games, as for words; the others train a tense.
+    public var isTranslation: Bool { tense == nil }
+
+    public var isSpeaking: Bool { base == .speak || base == .translateSpeak }
+
+    /// Recognition rather than production: graded like multiple choice.
+    public var isRecognition: Bool { [.chooseForm, .whichPerson, .translateChoice].contains(base) }
 
     public static var translationKinds: [VerbExerciseKind] { allCases.filter(\.isTranslation) }
+    /// Every conjugation game, all tenses.
     public static var conjugationKinds: [VerbExerciseKind] { allCases.filter { !$0.isTranslation } }
+
+    /// The conjugation games of one tense.
+    public static func conjugationKinds(_ tense: VerbTense) -> [VerbExerciseKind] {
+        allCases.filter { $0.tense == tense }
+    }
 }
 
 public enum VerbExercises {
     /// Answer for one person: the form, with or without the pronoun in front.
-    public static func check(_ given: String, verb: VerbEntry, person: Person) -> Verdict {
+    public static func check(_ given: String, verb: VerbEntry, person: Person, tense: VerbTense = .present) -> Verdict {
         var words = PhraseChecker.tokens(given)
         if words.count > 1, person.acceptedPronouns.contains(words[0]) {
             words.removeFirst()
         }
-        return PhraseChecker.check(words.joined(separator: " "), accepted: [verb.form(for: person)])
+        return PhraseChecker.check(words.joined(separator: " "), accepted: [verb.form(for: person, tense: tense)])
     }
 
     /// The whole table: the weakest of the six answers.
-    public static func checkTable(_ answers: [String], verb: VerbEntry) -> Verdict {
+    public static func checkTable(_ answers: [String], verb: VerbEntry, tense: VerbTense = .present) -> Verdict {
         Person.allCases.map { person in
-            person.rawValue < answers.count ? check(answers[person.rawValue], verb: verb, person: person) : .wrong
+            person.rawValue < answers.count
+                ? check(answers[person.rawValue], verb: verb, person: person, tense: tense) : .wrong
         }.min() ?? .wrong
     }
 
     /// Spoken "du fährst": the pronoun may be there or not, the best transcription wins.
-    public static func checkSpoken(_ transcripts: [String], verb: VerbEntry, person: Person) -> Verdict {
-        transcripts.map { check($0, verb: verb, person: person) }.max() ?? .wrong
+    public static func checkSpoken(_ transcripts: [String], verb: VerbEntry, person: Person,
+                                   tense: VerbTense = .present) -> Verdict {
+        transcripts.map { check($0, verb: verb, person: person, tense: tense) }.max() ?? .wrong
     }
 
     /// A person picked for a shown form: right if that person uses the same form.
-    public static func checkPerson(_ chosen: Person, form: String, verb: VerbEntry) -> Verdict {
-        verb.persons(with: form).contains(chosen) ? .correct : .wrong
+    public static func checkPerson(_ chosen: Person, form: String, verb: VerbEntry,
+                                   tense: VerbTense = .present) -> Verdict {
+        verb.persons(with: form, tense: tense).contains(chosen) ? .correct : .wrong
     }
 
-    /// Four options: the right form, plausible wrong endings ("fahrst" for "fährst")
-    /// and the verb's other forms.
-    public static func options<R: RandomNumberGenerator>(for verb: VerbEntry, person: Person, using rng: inout R) -> [String] {
-        let correct = verb.form(for: person)
+    /// Four options: the right form, plausible wrong endings ("fahrst" for "fährst",
+    /// "fahrte" for "fuhr") and the verb's other forms, in either tense.
+    public static func options<R: RandomNumberGenerator>(for verb: VerbEntry, person: Person,
+                                                         tense: VerbTense = .present,
+                                                         using rng: inout R) -> [String] {
+        let correct = verb.form(for: person, tense: tense)
         let correctKey = PhraseChecker.key(correct)
         let parts = correct.split(separator: " ", maxSplits: 1).map(String.init)
         let tail = parts.count > 1 ? " " + parts[1] : ""
@@ -214,11 +305,20 @@ public enum VerbExercises {
             stem = String(stem[prefixEnd.upperBound...])
         }
         if stem.hasSuffix("en") { stem.removeLast(2) } else if stem.hasSuffix("n") { stem.removeLast() }
-        let fakes = ["e", "st", "t", "en", "est"].map { stem + $0 + tail }
+        let endings: [String]
+        switch tense {
+        case .present: endings = ["e", "st", "t", "en", "est"]
+        case .preterite: endings = ["te", "test", "ten", "tet", "t"]
+        }
+        let fakes = endings.map { stem + $0 + tail }
+        // The other tense is a typical mix-up too: "fährt" for "fuhr".
+        let other: VerbTense = tense == .present ? .preterite : .present
+        let sameTense = verb.forms(in: tense).shuffled(using: &rng)
+        let mixUp = verb.form(for: person, tense: other)
 
         var result: [String] = []
         var keys: Set<String> = [correctKey]
-        for candidate in fakes.shuffled(using: &rng) + verb.forms.shuffled(using: &rng)
+        for candidate in [mixUp] + fakes.shuffled(using: &rng) + sameTense
         where !candidate.isEmpty && keys.insert(PhraseChecker.key(candidate)).inserted {
             result.append(candidate)
         }
@@ -231,13 +331,19 @@ public enum VerbExercises {
     /// then the full table or speaking.
     /// Meaning first, then the present tense: choosing at level 0, typing at 1,
     /// the full table and speaking later.
-    public static func kind<R: RandomNumberGenerator>(level: Int, allowSpeaking: Bool, using rng: inout R) -> VerbExerciseKind {
-        let candidates: [VerbExerciseKind]
+    /// With the preterite known, its games join from level 1, a step behind the present.
+    public static func kind<R: RandomNumberGenerator>(level: Int, allowSpeaking: Bool, hasPreterite: Bool = false,
+                                                      using rng: inout R) -> VerbExerciseKind {
+        var candidates: [VerbExerciseKind]
         switch level {
         case ...0: candidates = [.translateChoice, .chooseForm]
-        case 1: candidates = [.translateGerman, .translateEnglish, .typeForm, .whichPerson]
+        case 1:
+            candidates = [.translateGerman, .translateEnglish, .typeForm, .whichPerson]
+                + (hasPreterite ? [.chooseFormPreterite, .whichPersonPreterite] : [])
         default:
             candidates = [.fullTable, .typeForm, .translateGerman] + (allowSpeaking ? [.speak, .translateSpeak] : [])
+                + (hasPreterite ? [.typeFormPreterite, .fullTablePreterite] : [])
+                + (hasPreterite && allowSpeaking ? [.speakPreterite] : [])
         }
         return candidates.randomElement(using: &rng) ?? .typeForm
     }
@@ -289,22 +395,46 @@ public enum VerbExercises {
         PhraseChecker.check(given, accepted: [expected])
     }
 
-    /// Per kind: average progress over the verbs (every kind applies to every verb).
-    public static func kindMastery(_ streaks: [[VerbExerciseKind: Int]]) -> [VerbExerciseKind: Double] {
-        guard !streaks.isEmpty else { return [:] }
+    /// Per kind: average progress over the verbs. Present and meaning games apply to every verb;
+    /// a preterite game only to the verbs whose preterite is known (the others are left out, so
+    /// it has no percentage until one is).
+    public static func kindMastery(_ progress: [VerbProgress]) -> [VerbExerciseKind: Double] {
         var result: [VerbExerciseKind: Double] = [:]
         for kind in VerbExerciseKind.allCases {
-            let total = streaks.map { PathPlanner.progress(level: $0[kind] ?? 0) }.reduce(0, +)
-            result[kind] = total / Double(streaks.count)
+            let applicable = progress.filter { kind.tense != .preterite || $0.hasPreterite }
+            guard !applicable.isEmpty else { continue }
+            let total = applicable.map { PathPlanner.progress(level: $0.streaks[kind] ?? 0) }.reduce(0, +)
+            result[kind] = total / Double(applicable.count)
         }
         return result
     }
 
-    /// Average over all kinds, or over the given ones (translation / conjugation).
-    public static func mastery(_ streaks: [[VerbExerciseKind: Int]], kinds subset: [VerbExerciseKind]? = nil) -> Double {
-        let all = kindMastery(streaks)
+    /// Present tense only, for callers that do not know about the preterite.
+    public static func kindMastery(_ streaks: [[VerbExerciseKind: Int]]) -> [VerbExerciseKind: Double] {
+        kindMastery(streaks.map { VerbProgress(streaks: $0, hasPreterite: false) })
+    }
+
+    /// Average over all the kinds that apply, or over the given ones (translation / one tense).
+    public static func mastery(_ progress: [VerbProgress], kinds subset: [VerbExerciseKind]? = nil) -> Double {
+        let all = kindMastery(progress)
         let values = (subset ?? VerbExerciseKind.allCases).compactMap { all[$0] }
         return values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+    }
+
+    public static func mastery(_ streaks: [[VerbExerciseKind: Int]], kinds subset: [VerbExerciseKind]? = nil) -> Double {
+        mastery(streaks.map { VerbProgress(streaks: $0, hasPreterite: false) }, kinds: subset)
+    }
+}
+
+/// One verb's progress, as the percentages need it.
+public struct VerbProgress: Hashable, Sendable {
+    public var streaks: [VerbExerciseKind: Int]
+    /// Whether the preterite games apply.
+    public var hasPreterite: Bool
+
+    public init(streaks: [VerbExerciseKind: Int], hasPreterite: Bool) {
+        self.streaks = streaks
+        self.hasPreterite = hasPreterite
     }
 }
 
@@ -387,6 +517,9 @@ public enum VerbExtractionPrompt {
         - forms: the present tense (Präsens) exactly as written after the pronoun, in this order: \
         ich, du, er/sie/es, wir, ihr, sie/Sie. Separable verbs with the prefix at the end \
         ("stehe auf"), reflexive verbs with the reflexive pronoun ("wasche mich", "wäschst dich").
+        - preterite: the simple past (Präteritum) in the same order and style: ich, du, er/sie/es, \
+        wir, ihr, sie/Sie ("fuhr", "fuhrst", "fuhr", "fuhren", "fuhrt", "fuhren"; "stand auf"; \
+        "wusch mich"; "war", "hatte", "konnte").
         - group: one of "modal", "reflexive", "irregular", "stemChanging", "regular", for the verb \
         without its separable prefix (choose the first that applies in this order; sein, haben and \
         werden are "irregular", verbs changing vowel in du/er like fahren or sprechen are \
@@ -401,7 +534,7 @@ public enum VerbExtractionPrompt {
     }
 
     public static func userInstruction(for infinitives: [String]) -> String {
-        "Conjugate in the present tense: " + infinitives.joined(separator: ", ")
+        "Conjugate in the present tense and the preterite: " + infinitives.joined(separator: ", ")
     }
 
     public static var responseSchema: [String: Any] {
@@ -410,13 +543,13 @@ public enum VerbExtractionPrompt {
         let forms: [String: Any] = ["type": "array", "items": string, "minItems": 6, "maxItems": 6]
         let group: [String: Any] = ["type": "string", "enum": VerbGroup.baseGroups.map(\.rawValue)]
         let properties: [String: Any] = [
-            "infinitive": string, "english": string, "forms": forms, "group": group,
+            "infinitive": string, "english": string, "forms": forms, "preterite": forms, "group": group,
             "separablePrefix": nullableString, "note": nullableString, "emoji": string,
         ]
         let verb: [String: Any] = [
             "type": "object",
             "properties": properties,
-            "required": ["infinitive", "english", "forms", "group", "separablePrefix", "note", "emoji"],
+            "required": ["infinitive", "english", "forms", "preterite", "group", "separablePrefix", "note", "emoji"],
             "additionalProperties": false,
         ]
         let verbs: [String: Any] = ["type": "array", "items": verb]
@@ -478,6 +611,7 @@ public enum VerbExtractionParser {
         let infinitive = clean(raw.infinitive)
         let english = clean(raw.english)
         let forms = raw.forms.map { clean($0) }
+        let preterite = raw.preterite.map { clean($0) }
         guard !infinitive.isEmpty, !english.isEmpty, forms.count == Person.allCases.count,
               forms.allSatisfy({ !$0.isEmpty }) else { return nil }
         let note = clean(raw.note)
@@ -492,6 +626,8 @@ public enum VerbExtractionParser {
             infinitive: infinitive,
             english: english.hasPrefix("to ") ? String(english.dropFirst(3)) : english,
             forms: forms,
+            // A partial preterite is worse than none: the verb just skips those games.
+            preterite: preterite.count == Person.allCases.count && preterite.allSatisfy { !$0.isEmpty } ? preterite : [],
             group: group,
             note: note.isEmpty ? nil : note,
             emoji: clean(raw.emoji).first.map(String.init) ?? "🏃",
@@ -512,13 +648,14 @@ private struct RawVerb: Decodable {
     let infinitive: String?
     let english: String?
     let forms: [String]
+    let preterite: [String]
     let group: String?
     let separablePrefix: String?
     let note: String?
     let emoji: String?
 
     enum CodingKeys: String, CodingKey {
-        case infinitive, english, forms, group, separablePrefix, note, emoji
+        case infinitive, english, forms, preterite, group, separablePrefix, note, emoji
     }
 
     init(from decoder: Decoder) throws {
@@ -532,15 +669,20 @@ private struct RawVerb: Decodable {
         separablePrefix = string(.separablePrefix)
         note = string(.note)
         emoji = string(.emoji)
-        if let list = try? container.decode([String].self, forKey: .forms) {
-            forms = list
-        } else if let table = try? container.decode([String: String].self, forKey: .forms) {
-            // {"ich": "fahre", "du": "fährst", ...}
-            let keys = [["ich"], ["du"], ["er", "er/sie/es"], ["wir"], ["ihr"], ["sie", "sie/Sie", "Sie"]]
-            forms = keys.map { options in options.lazy.compactMap { table[$0] }.first ?? "" }
-        } else {
-            forms = []
+        forms = Self.table(container, .forms)
+        preterite = Self.table(container, .preterite)
+    }
+
+    /// A list in person order, or {"ich": "fahre", "du": "fährst", ...}.
+    private static func table(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> [String] {
+        if let list = try? container.decode([String].self, forKey: key) {
+            return list
         }
+        if let table = try? container.decode([String: String].self, forKey: key) {
+            let keys = [["ich"], ["du"], ["er", "er/sie/es"], ["wir"], ["ihr"], ["sie", "sie/Sie", "Sie"]]
+            return keys.map { options in options.lazy.compactMap { table[$0] }.first ?? "" }
+        }
+        return []
     }
 }
 
@@ -551,6 +693,8 @@ public struct BackupVerb: Codable, Hashable, Sendable {
     public var infinitive: String
     public var english: String
     public var forms: [String]
+    /// Missing in backups made before the preterite was stored.
+    public var preterite: [String]?
     public var group: VerbGroup
     public var note: String?
     public var emoji: String
@@ -569,6 +713,7 @@ public struct BackupVerb: Codable, Hashable, Sendable {
         infinitive = entry.infinitive
         english = entry.english
         forms = entry.forms
+        preterite = entry.preterite.isEmpty ? nil : entry.preterite
         group = entry.group
         note = entry.note
         emoji = entry.emoji
@@ -581,8 +726,8 @@ public struct BackupVerb: Codable, Hashable, Sendable {
     }
 
     public var entry: VerbEntry {
-        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, group: group, note: note,
-                  emoji: emoji, separablePrefix: separablePrefix)
+        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, preterite: preterite ?? [],
+                  group: group, note: note, emoji: emoji, separablePrefix: separablePrefix)
     }
 
     public var streaksByKind: [VerbExerciseKind: Int] {
@@ -626,6 +771,72 @@ public enum BackupVerbMerger {
             } else {
                 result.inserts.append(verb)
             }
+        }
+        return result
+    }
+}
+
+// MARK: - Preterite for saved verbs
+
+/// Adds the preterite to verbs saved before it was asked for: only the forms, text only.
+public enum VerbPreteritePrompt {
+    public static func system() -> String {
+        """
+        You help an English-speaking learner conjugate German verbs. You receive a list of German \
+        infinitives. For every verb of the list, once, return its infinitive unchanged and its simple \
+        past (Präteritum) exactly as written after the pronoun, in this order: ich, du, er/sie/es, wir, \
+        ihr, sie/Sie. Separable verbs with the prefix at the end ("stand auf"), reflexive verbs with \
+        the reflexive pronoun ("wusch mich", "wuschst dich").
+
+        Answer with JSON only, shaped as {"verbs": [{"infinitive": "fahren", "preterite": \
+        ["fuhr", "fuhrst", "fuhr", "fuhren", "fuhrt", "fuhren"]}]}.
+        """
+    }
+
+    public static func userInstruction(for infinitives: [String]) -> String {
+        "Preterite of: " + infinitives.joined(separator: ", ")
+    }
+
+    public static var responseSchema: [String: Any] {
+        let string: [String: Any] = ["type": "string"]
+        let forms: [String: Any] = ["type": "array", "items": string, "minItems": 6, "maxItems": 6]
+        let properties: [String: Any] = ["infinitive": string, "preterite": forms]
+        let verb: [String: Any] = [
+            "type": "object",
+            "properties": properties,
+            "required": ["infinitive", "preterite"],
+            "additionalProperties": false,
+        ]
+        let verbs: [String: Any] = ["type": "array", "items": verb]
+        let rootProperties: [String: Any] = ["verbs": verbs]
+        return ["type": "object", "properties": rootProperties, "required": ["verbs"], "additionalProperties": false]
+    }
+
+    /// The six forms per verb, keyed by the infinitive's dedupe key; incomplete tables are left out.
+    public static func parse(_ content: String) throws -> [String: [String]] {
+        guard let start = content.firstIndex(where: { $0 == "{" || $0 == "[" }),
+              let end = content.lastIndex(where: { $0 == "}" || $0 == "]" }),
+              start < end else {
+            throw ExtractionParser.ParseError.noJSON
+        }
+        let data = Data(String(content[start...end]).utf8)
+        let decoder = JSONDecoder()
+        let raws: [RawVerb]
+        if let wrapped = try? decoder.decode(RawVerbs.self, from: data) {
+            raws = wrapped.verbs
+        } else if let bare = try? decoder.decode([RawVerb].self, from: data) {
+            raws = bare
+        } else {
+            throw ExtractionParser.ParseError.invalidJSON
+        }
+        var result: [String: [String]] = [:]
+        for raw in raws {
+            let infinitive = (raw.infinitive ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let forms = raw.preterite.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            guard !infinitive.isEmpty, forms.count == Person.allCases.count, forms.allSatisfy({ !$0.isEmpty }) else {
+                continue
+            }
+            result[PhraseChecker.key(infinitive)] = result[PhraseChecker.key(infinitive)] ?? forms
         }
         return result
     }

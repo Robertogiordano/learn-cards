@@ -99,7 +99,9 @@ final class VerbTests: XCTestCase {
         let streaks: [[VerbExerciseKind: Int]] = [[.translateChoice: 2, .translateGerman: 2]]
         XCTAssertEqual(VerbExercises.mastery(streaks, kinds: [.translateChoice, .translateGerman]), 1)
         XCTAssertEqual(VerbExercises.mastery(streaks, kinds: VerbExerciseKind.conjugationKinds), 0)
-        XCTAssertEqual(VerbExercises.mastery(streaks), 2.0 / Double(VerbExerciseKind.allCases.count), accuracy: 0.0001)
+        // Without a preterite, its games do not count.
+        let applicable = VerbExerciseKind.allCases.count - VerbExerciseKind.conjugationKinds(.preterite).count
+        XCTAssertEqual(VerbExercises.mastery(streaks), 2.0 / Double(applicable), accuracy: 0.0001)
         XCTAssertEqual(VerbExerciseKind.translationKinds.count, 4)
     }
 
@@ -107,7 +109,7 @@ final class VerbTests: XCTestCase {
         let kinds = VerbExercises.kindMastery([[.chooseForm: 2], [.chooseForm: 1, .typeForm: 2]])
         XCTAssertEqual(kinds[.chooseForm], 0.75)
         XCTAssertEqual(kinds[.typeForm], 0.5)
-        XCTAssertEqual(kinds.count, VerbExerciseKind.allCases.count)
+        XCTAssertEqual(kinds.count, VerbExerciseKind.allCases.count - VerbExerciseKind.conjugationKinds(.preterite).count)
     }
 
     func testParser() throws {
@@ -193,5 +195,117 @@ final class VerbTests: XCTestCase {
         let backup = BackupVerb(entry: verb, createdAt: .now, updatedAt: .now, srs: .new(now: .now))
         let decoded = try JSONDecoder().decode(BackupVerb.self, from: JSONEncoder().encode(backup))
         XCTAssertEqual(decoded.entry.separablePrefix, "an")
+    }
+
+    // MARK: - Preterite
+
+    var fahrenWithPast: VerbEntry {
+        var verb = fahren
+        verb.preterite = ["fuhr", "fuhrst", "fuhr", "fuhren", "fuhrt", "fuhren"]
+        return verb
+    }
+
+    func testPreteriteKinds() {
+        XCTAssertEqual(VerbExerciseKind.conjugationKinds(.preterite).count, 5)
+        XCTAssertEqual(VerbExerciseKind.conjugationKinds(.present).count, 5)
+        XCTAssertEqual(VerbExerciseKind.typeFormPreterite.base, .typeForm)
+        XCTAssertEqual(VerbExerciseKind.typeFormPreterite.tense, .preterite)
+        XCTAssertEqual(VerbExerciseKind.typeForm.inTense(.preterite), .typeFormPreterite)
+        XCTAssertEqual(VerbExerciseKind.speakPreterite.inTense(.present), .speak)
+        XCTAssertEqual(VerbExerciseKind.translateGerman.inTense(.preterite), .translateGerman)
+        XCTAssertTrue(VerbExerciseKind.speakPreterite.isSpeaking)
+        XCTAssertTrue(VerbExerciseKind.chooseFormPreterite.isRecognition)
+        XCTAssertNil(VerbExerciseKind.translateChoice.tense)
+    }
+
+    func testPreteriteSupport() {
+        XCTAssertFalse(fahren.hasPreterite)
+        XCTAssertFalse(fahren.supports(.typeFormPreterite))
+        XCTAssertTrue(fahren.supports(.typeForm))
+        XCTAssertTrue(fahrenWithPast.supports(.fullTablePreterite))
+    }
+
+    func testCheckPreterite() {
+        let verb = fahrenWithPast
+        XCTAssertEqual(VerbExercises.check("fuhrst", verb: verb, person: .du, tense: .preterite), .correct)
+        XCTAssertEqual(VerbExercises.check("du fuhrst", verb: verb, person: .du, tense: .preterite), .correct)
+        XCTAssertEqual(VerbExercises.check("fährst", verb: verb, person: .du, tense: .preterite), .wrong)
+        XCTAssertEqual(VerbExercises.checkTable(verb.preterite, verb: verb, tense: .preterite), .correct)
+        // "fuhr" is both ich and er/sie/es.
+        XCTAssertEqual(verb.persons(with: "fuhr", tense: .preterite), [.ich, .erSieEs])
+        XCTAssertEqual(VerbExercises.checkPerson(.ich, form: "fuhr", verb: verb, tense: .preterite), .correct)
+    }
+
+    func testPreteriteOptions() {
+        var rng = SystemRandomNumberGenerator()
+        let verb = fahrenWithPast
+        for person in Person.allCases {
+            let options = VerbExercises.options(for: verb, person: person, tense: .preterite, using: &rng)
+            XCTAssertEqual(options.count, 4)
+            XCTAssertEqual(Set(options.map { PhraseChecker.key($0) }).count, 4)
+            XCTAssertTrue(options.contains(verb.form(for: person, tense: .preterite)))
+        }
+    }
+
+    func testPreteriteMasteryOnlyCountsVerbsWithIt() {
+        let progress = [
+            VerbProgress(streaks: [.typeFormPreterite: 2], hasPreterite: true),
+            VerbProgress(streaks: [:], hasPreterite: false),
+        ]
+        let kinds = VerbExercises.kindMastery(progress)
+        XCTAssertEqual(kinds[.typeFormPreterite], 1)
+        XCTAssertEqual(kinds[.typeForm], 0)
+        XCTAssertNil(VerbExercises.kindMastery([VerbProgress(streaks: [:], hasPreterite: false)])[.typeFormPreterite])
+    }
+
+    func testAdaptiveKindUsesPreteriteOnlyWhenKnown() {
+        var rng = SystemRandomNumberGenerator()
+        for _ in 0..<200 {
+            let kind = VerbExercises.kind(level: 3, allowSpeaking: true, hasPreterite: false, using: &rng)
+            XCTAssertNotEqual(kind.tense, .preterite)
+        }
+        let kinds = (0..<300).map { _ in
+            VerbExercises.kind(level: 3, allowSpeaking: true, hasPreterite: true, using: &rng)
+        }
+        XCTAssertTrue(kinds.contains { $0.tense == .preterite })
+    }
+
+    func testParserReadsPreterite() throws {
+        let json = """
+        {"verbs": [{"infinitive": "fahren", "english": "to drive",
+          "forms": ["fahre", "fährst", "fährt", "fahren", "fahrt", "fahren"],
+          "preterite": ["fuhr", "fuhrst", "fuhr", "fuhren", "fuhrt", "fuhren"],
+          "group": "stemChanging", "separablePrefix": null, "note": null, "emoji": "🚗"},
+         {"infinitive": "gehen", "english": "go",
+          "forms": ["gehe", "gehst", "geht", "gehen", "geht", "gehen"],
+          "preterite": ["ging", "gingst"], "group": "irregular", "separablePrefix": null, "note": null, "emoji": "🚶"}]}
+        """
+        let verbs = try VerbExtractionParser.parse(json)
+        XCTAssertEqual(verbs.count, 2)
+        XCTAssertEqual(verbs[0].preterite.first, "fuhr")
+        // A partial table is dropped rather than half used.
+        XCTAssertEqual(verbs[1].preterite, [])
+    }
+
+    func testPreteritePromptParser() throws {
+        let json = """
+        {"verbs": [{"infinitive": "Sein", "preterite": ["war", "warst", "war", "waren", "wart", "waren"]},
+                   {"infinitive": "haben", "preterite": ["hatte"]}]}
+        """
+        let tables = try VerbPreteritePrompt.parse(json)
+        XCTAssertEqual(tables[PhraseChecker.key("sein")]?.first, "war")
+        XCTAssertNil(tables[PhraseChecker.key("haben")])
+    }
+
+    func testBackupKeepsPreteriteAndReadsOldBackups() throws {
+        let backup = BackupVerb(entry: fahrenWithPast, createdAt: .now, updatedAt: .now, srs: .new(now: .now))
+        let decoded = try JSONDecoder().decode(BackupVerb.self, from: JSONEncoder().encode(backup))
+        XCTAssertEqual(decoded.entry.preterite, fahrenWithPast.preterite)
+
+        let old = BackupVerb(entry: fahren, createdAt: .now, updatedAt: .now, srs: .new(now: .now))
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as? [String: Any])
+        object.removeValue(forKey: "preterite")
+        let oldDecoded = try JSONDecoder().decode(BackupVerb.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertEqual(oldDecoded.entry.preterite, [])
     }
 }

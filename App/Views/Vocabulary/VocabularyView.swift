@@ -199,6 +199,13 @@ struct WordsListView: View {
     @State private var editing: Word?
     @State private var isAdding = false
     @State private var themeFilter: String?
+    @AppStorage(SettingsKey.themeSort) private var themeSortRaw = ThemeSort.standard.rawValue
+    @Query private var verbs: [Verb]
+    @State private var moveProgress: Int?
+    @State private var moveMessage: String?
+
+    /// Words marked as verbs: they belong to the verb section, with their tables.
+    private var verbWords: [Word] { words.filter { $0.partOfSpeech == .verb } }
 
     private var visibleWords: [Word] {
         let filtered = themeFilter.map { theme in words.filter { $0.category == theme } } ?? words
@@ -214,11 +221,12 @@ struct WordsListView: View {
 
     private var dueCount: Int { words.filter(\.isDueAnywhere).count }
 
-    /// Visible words grouped by theme, in the order of `Array<Word>.categories`.
+    /// Visible words grouped by theme, themes in the order chosen with "Sort themes".
     private var sections: [ThemeSection] {
         let visible = visibleWords
         let grouped = Dictionary(grouping: visible, by: { $0.category })
-        return visible.categories.map { ThemeSection(theme: $0, words: grouped[$0] ?? []) }
+        let order = words.categories(sortedBy: ThemeSort(rawValue: themeSortRaw) ?? .standard)
+        return order.compactMap { theme in grouped[theme].map { ThemeSection(theme: theme, words: $0) } }
     }
 
     var body: some View {
@@ -229,6 +237,9 @@ struct WordsListView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .listRowBackground(Color.clear)
+                }
+                if !verbWords.isEmpty {
+                    moveVerbsSection
                 }
                 ForEach(sections) { section in
                     Section {
@@ -255,9 +266,16 @@ struct WordsListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker("Sort", selection: $sort) {
+                        Picker("Sort themes", selection: $themeSortRaw) {
+                            ForEach(ThemeSort.allCases) { sort in
+                                Label(sort.title, systemImage: sort.systemImage).tag(sort.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        Picker("Sort words", selection: $sort) {
                             ForEach(VocabularySort.allCases) { Text($0.title).tag($0) }
                         }
+                        .pickerStyle(.menu)
                         Picker("Theme", selection: $themeFilter) {
                             Text("All themes").tag(String?.none)
                             ForEach(words.categories, id: \.self) { theme in
@@ -283,6 +301,50 @@ struct WordsListView: View {
                     context.insert(Word(entry: entry))
                     try? context.save()
                 }
+            }
+        }
+    }
+
+    private var moveVerbsSection: some View {
+        let count = verbWords.count
+        return Section {
+            if let done = moveProgress {
+                ProgressView(value: Double(done), total: Double(max(count, 1))) {
+                    Text("Moving verbs and conjugating them…")
+                }
+            } else {
+                Button {
+                    moveVerbs()
+                } label: {
+                    Label(count == 1 ? "Move 1 verb to Verbs" : "Move \(count) verbs to Verbs",
+                          systemImage: "arrow.right.doc.on.clipboard")
+                }
+            }
+        } footer: {
+            Text("Verbs are trained in their own section, with present tense and preterite. Each verb gets its tables with AI and keeps its emoji, meaning and review schedule; verbs already in the section just replace the word.")
+        }
+        .alert("Verbs moved", isPresented: Binding(isPresent: $moveMessage)) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(moveMessage ?? "")
+        }
+    }
+
+    private func moveVerbs() {
+        moveProgress = 0
+        Task { @MainActor in
+            defer { moveProgress = nil }
+            do {
+                let result = try await VerbMaintenance.moveVerbWords(words, verbs: verbs, context: context) { done in
+                    moveProgress = done
+                }
+                var parts: [String] = []
+                if result.created > 0 { parts.append("\(result.created) added to Verbs") }
+                if result.merged > 0 { parts.append("\(result.merged) were already there") }
+                if !result.left.isEmpty { parts.append("not conjugated, still here: " + result.left.joined(separator: ", ")) }
+                moveMessage = parts.joined(separator: "; ") + "."
+            } catch {
+                moveMessage = error.localizedDescription
             }
         }
     }

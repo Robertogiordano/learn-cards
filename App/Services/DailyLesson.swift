@@ -117,7 +117,7 @@ enum DailyLessonBuilder {
                 item: LessonItem(domain: .verb, id: verb.id, reason: .practice),
                 theme: verb.group.label, isDue: verb.isDue, isNew: verb.srs.isNew,
                 recentErrors: errorCount["\(verb.id.uuidString)|verb"] ?? 0,
-                mastery: VerbExercises.mastery([verb.kindStreaks])
+                mastery: VerbExercises.mastery([verb.progress])
             ))
         }
         return result
@@ -169,10 +169,11 @@ enum DailyLessonBuilder {
                                       mastery: ["all": percent(PhraseExercises.mastery(items.map(\.progressInput)))])
         }
         let verbGroups = verbs.groups.map { group in
-            let streaks = verbs.filter { $0.group == group }.map(\.kindStreaks)
+            let streaks = verbs.filter { $0.group == group }.map(\.progress)
             return CoachSummary.Group(name: group.label, items: streaks.count, mastery: [
                 "translation": percent(VerbExercises.mastery(streaks, kinds: VerbExerciseKind.translationKinds)),
-                "conjugation": percent(VerbExercises.mastery(streaks, kinds: VerbExerciseKind.conjugationKinds)),
+                "conjugation": percent(VerbExercises.mastery(streaks, kinds: VerbExerciseKind.conjugationKinds(.present))),
+                "preterite": percent(VerbExercises.mastery(streaks, kinds: VerbExerciseKind.conjugationKinds(.preterite))),
             ])
         }
         let numbers = NumberStatsStore.shared.stats

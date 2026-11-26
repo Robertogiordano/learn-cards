@@ -30,7 +30,8 @@ enum BackupService {
                                              wordSets: WordSetStore.shared.sets,
                                              verbSets: VerbSetStore.shared.sets,
                                              grammarPills: GrammarPillStore.shared.pills,
-                                             notes: NoteStore.shared.notes))
+                                             notes: NoteStore.shared.notes,
+                                             clock: TimeStatsStore.shared.stats.isEmpty ? nil : TimeStatsStore.shared.stats))
     }
 
     static func defaultFilename(date: Date = .now) -> String {
@@ -80,6 +81,9 @@ enum BackupService {
         if let numbers = pending.backup.numbers, NumberStatsStore.shared.stats.isEmpty {
             NumberStatsStore.shared.replace(with: numbers)
         }
+        if let clock = pending.backup.clock, TimeStatsStore.shared.stats.isEmpty {
+            TimeStatsStore.shared.replace(with: clock)
+        }
         if let activity = pending.backup.activity {
             ActivityStore.shared.merge(activity)
         }
@@ -127,6 +131,7 @@ enum BackupService {
         VerbSetStore.shared.replace(with: backup.verbSets ?? [])
         GrammarPillStore.shared.replace(with: backup.grammarPills ?? [])
         NoteStore.shared.replace(with: backup.notes ?? [])
+        TimeStatsStore.shared.replace(with: backup.clock ?? TimeStats())
     }
 }
 

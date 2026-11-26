@@ -12,6 +12,7 @@ struct PathView: View {
     @AppStorage(SettingsKey.bonusSize) private var bonusSize = 15
     @AppStorage(SettingsKey.speakingInMixed) private var speakingInMixed = true
     @AppStorage(SettingsKey.numbersLevel) private var numbersLevelRaw = NumberLevel.upTo20.rawValue
+    @AppStorage(SettingsKey.themeSort) private var themeSortRaw = ThemeSort.standard.rawValue
     @State private var activeSession: StudySession?
     @State private var isAskingCoach = false
     /// Set by the coach: the lesson starts once its sheet has finished closing.
@@ -105,6 +106,11 @@ struct PathView: View {
                     NumbersRow()
                 }
                 NavigationLink {
+                    TimeView()
+                } label: {
+                    TimeRow()
+                }
+                NavigationLink {
                     PhrasesView()
                 } label: {
                     PhrasesRow()
@@ -149,16 +155,29 @@ struct PathView: View {
                 }
             }
 
-            Section("Themes") {
-                ForEach(PathPlanner.themeProgress(pathWords)) { progress in
+            Section {
+                ForEach(sortedThemes(PathPlanner.themeProgress(pathWords))) { progress in
                     NavigationLink {
                         ThemeDetailView(theme: progress.theme)
                     } label: {
                         ThemeRow(progress: progress, emoji: emojis[progress.theme] ?? "📝")
                     }
                 }
+            } header: {
+                HStack {
+                    Text("Themes")
+                    Spacer()
+                    ThemeSortMenu(selection: $themeSortRaw)
+                }
             }
         }
+    }
+
+    /// The theme map in the order chosen with the sort menu.
+    private func sortedThemes(_ progress: [ThemeProgress]) -> [ThemeProgress] {
+        let sort = ThemeSort(rawValue: themeSortRaw) ?? .standard
+        let byTheme = Dictionary(progress.map { ($0.theme, $0) }, uniquingKeysWith: { first, _ in first })
+        return words.categories(sortedBy: sort).compactMap { byTheme[$0] }
     }
 
     /// The local lesson is prepared once a day, the first time the tab is shown.
@@ -363,5 +382,27 @@ extension StudyArea {
         case .article: return "textformat"
         case .plural: return "square.stack.3d.up"
         }
+    }
+}
+
+/// A small menu choosing how themes are ordered; the choice is shared by the path and the vocabulary.
+struct ThemeSortMenu: View {
+    @Binding var selection: String
+
+    private var current: ThemeSort { ThemeSort(rawValue: selection) ?? .standard }
+
+    var body: some View {
+        Menu {
+            Picker("Sort themes", selection: $selection) {
+                ForEach(ThemeSort.allCases) { sort in
+                    Label(sort.title, systemImage: sort.systemImage).tag(sort.rawValue)
+                }
+            }
+        } label: {
+            Label(current.title, systemImage: "arrow.up.arrow.down")
+                .font(.caption)
+                .textCase(nil)
+        }
+        .accessibilityLabel("Sort themes: \(current.title)")
     }
 }

@@ -344,3 +344,22 @@ extension Array where Element == Word {
         }
     }
 }
+
+extension Array where Element == Word {
+    /// Per theme: how many words, how many never studied, and when one was last added or edited.
+    var themeStats: [ThemeStats] {
+        Dictionary(grouping: self, by: \.category).map { theme, words in
+            ThemeStats(
+                theme: theme,
+                wordCount: words.count,
+                newCount: words.filter { $0.pathWord.isNew }.count,
+                lastUpdated: words.map { Swift.max($0.createdAt, $0.updatedAt) }.max() ?? .distantPast
+            )
+        }
+    }
+
+    /// Distinct themes in the chosen order.
+    func categories(sortedBy sort: ThemeSort) -> [String] {
+        ThemeOrdering.themes(themeStats, by: sort)
+    }
+}

@@ -107,6 +107,19 @@ struct OpenRouterClient {
         return verbs
     }
 
+    /// The preterite of verbs saved without it, keyed by dedupe key (text only).
+    func preterite(of infinitives: [String]) async throws -> [String: [String]] {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: VerbPreteritePrompt.system(),
+            instruction: VerbPreteritePrompt.userInstruction(for: infinitives),
+            schemaName: "preterite",
+            schema: VerbPreteritePrompt.responseSchema
+        ))
+        let tables = try VerbPreteritePrompt.parse(content)
+        guard !tables.isEmpty else { throw ClientError.noVerbs }
+        return tables
+    }
+
     /// Article, plural, translations, theme and the rest for a word typed in German (text only).
     func lookUpWord(_ word: String) async throws -> VocabEntry {
         let content = try await extract(jpeg: nil, request: Request(

@@ -29,12 +29,15 @@ final class Verb {
     var kindStreaksJSON: String = ""
     /// "auf" for "aufstehen", nil when not separable.
     var separablePrefix: String?
+    /// Preterite in `Person` order; empty for verbs saved before it was asked for.
+    var preterite: [String] = []
 
     init(entry: VerbEntry, now: Date = .now) {
         id = entry.id
         infinitive = entry.infinitive
         english = entry.english
         forms = entry.forms
+        preterite = entry.preterite
         groupRaw = entry.group.rawValue
         note = entry.note
         emoji = entry.emoji
@@ -55,6 +58,7 @@ final class Verb {
         infinitive = backup.infinitive
         english = backup.english
         forms = backup.forms
+        preterite = backup.preterite ?? []
         groupRaw = backup.group.rawValue
         note = backup.note
         emoji = backup.emoji
@@ -77,8 +81,8 @@ final class Verb {
     }
 
     var entry: VerbEntry {
-        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, group: group, note: note,
-                  emoji: emoji, separablePrefix: separablePrefix)
+        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, preterite: preterite,
+                  group: group, note: note, emoji: emoji, separablePrefix: separablePrefix)
     }
 
     var dedupeKey: String { entry.dedupeKey }
@@ -99,6 +103,11 @@ final class Verb {
     }
 
     var isDue: Bool { dueDate <= .now }
+
+    var hasPreterite: Bool { entry.hasPreterite }
+
+    /// Progress as the percentages need it.
+    var progress: VerbProgress { VerbProgress(streaks: kindStreaks, hasPreterite: hasPreterite) }
 
     /// `kind` is the exercise being trained; nil weighs the verb as a whole.
     func candidate(for kind: VerbExerciseKind? = nil) -> StudyCandidate {
@@ -132,6 +141,7 @@ final class Verb {
         infinitive = entry.infinitive
         english = entry.english
         forms = entry.forms
+        preterite = entry.preterite
         group = entry.group
         note = entry.note
         emoji = entry.emoji
@@ -140,7 +150,10 @@ final class Verb {
     }
 
     func apply(_ backup: BackupVerb) {
+        let known = preterite
         update(from: backup.entry)
+        // A backup made before the preterite existed does not erase it.
+        if preterite.isEmpty { preterite = known }
         createdAt = min(createdAt, backup.createdAt)
         updatedAt = backup.updatedAt
         srs = backup.srs

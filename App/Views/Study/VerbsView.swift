@@ -4,7 +4,7 @@ import SwiftUI
 
 extension VerbExerciseKind {
     var systemImage: String {
-        switch self {
+        switch base {
         case .chooseForm: return "square.grid.2x2"
         case .typeForm: return "keyboard"
         case .fullTable: return "tablecells"
@@ -13,13 +13,15 @@ extension VerbExerciseKind {
         case .translateChoice: return "square.grid.2x2.fill"
         case .translateGerman: return "character.bubble"
         case .translateEnglish: return "character.cursor.ibeam"
-        case .translateSpeak: return "waveform"
+        default: return "waveform"
         }
     }
 }
 
 extension Color {
     static let verbs = Color.mint
+    /// Marks preterite games and tables.
+    static let preterite = Color.indigo
 }
 
 /// Row of the verb section on the path.
@@ -33,13 +35,13 @@ struct VerbsRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Verbs")
                     .font(.headline)
-                Text(verbs.isEmpty ? "Add verbs from the Add tab" : "\(verbs.count) verbs · present")
+                Text(verbs.isEmpty ? "Add verbs from the Add tab" : "\(verbs.count) verbs · present & preterite")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             if !verbs.isEmpty {
-                ProgressRing(value: VerbExercises.mastery(verbs.map(\.kindStreaks)), color: .verbs)
+                ProgressRing(value: VerbExercises.mastery(verbs.map(\.progress)), color: .verbs)
                     .frame(width: 38, height: 38)
             }
         }
@@ -63,6 +65,7 @@ struct VerbsView: View {
     @State private var group: VerbGroup?
     @State private var activeSession: StudySession?
     @State private var alertMessage: String?
+    @State private var preteriteProgress: Int?
 
     private static let sessionLength = 10
     /// New verbs per session when there are reviews too: a few at a time stick better.
@@ -87,8 +90,9 @@ struct VerbsView: View {
 
     var body: some View {
         let scoped = self.scoped
-        let streaks = scoped.map(\.kindStreaks)
+        let streaks = scoped.map(\.progress)
         let kinds = VerbExercises.kindMastery(streaks)
+        let withoutPreterite = scoped.filter { !$0.hasPreterite }
         let due = scoped.filter { !$0.srs.isNew && $0.isDue }.count
         let new = scoped.filter { $0.srs.isNew }.count
 
@@ -142,11 +146,15 @@ struct VerbsView: View {
                         start(.mixed, wantsSpeaking: speakingInMixed)
                     }
                 } footer: {
-                    Text("Each exercise has its own percentage: one right answer is worth half a verb, two in a row the whole verb. “Automatic” starts from the meaning (choose the verb) and works up to the full table and speaking.")
+                    Text("Each exercise has its own percentage: one right answer is worth half a verb, two in a row the whole verb. “Automatic” starts from the meaning (choose the verb) and works up to the full table and speaking, in the present first and then in the preterite.")
                 }
 
                 tileSection("Translation", kinds: VerbExerciseKind.translationKinds, mastery: kinds, streaks: streaks)
-                tileSection("Present tense conjugation", kinds: VerbExerciseKind.conjugationKinds, mastery: kinds, streaks: streaks)
+                tileSection("Present · Präsens", kinds: VerbExerciseKind.conjugationKinds(.present),
+                            mastery: kinds, streaks: streaks)
+                tileSection("Preterite · Präteritum", kinds: VerbExerciseKind.conjugationKinds(.preterite),
+                            mastery: kinds, streaks: streaks, color: .preterite,
+                            footer: withoutPreterite.isEmpty ? nil : preteriteFooter(missing: withoutPreterite))
 
                 if let verbSet {
                     setVerbsSection(verbSet, verbs: scoped)
@@ -202,14 +210,17 @@ struct VerbsView: View {
     }
 
     private func tileSection(_ title: String, kinds: [VerbExerciseKind], mastery: [VerbExerciseKind: Double],
-                             streaks: [[VerbExerciseKind: Int]]) -> some View {
+                             streaks: [VerbProgress], color: Color = .verbs,
+                             footer: AnyView? = nil) -> some View {
         Section {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 ForEach(kinds, id: \.self) { kind in
                     ExerciseTile(title: kind.title, systemImage: kind.systemImage,
-                                 value: mastery[kind] ?? 0, color: .verbs) {
+                                 value: mastery[kind] ?? 0, color: color) {
                         start(.fixed(kind), wantsSpeaking: kind.isSpeaking)
                     }
+                    // A preterite game with no verb to ask yet.
+                    .disabled(mastery[kind] == nil)
                 }
             }
             .padding(.vertical, 6)
@@ -219,6 +230,49 @@ struct VerbsView: View {
                 Spacer()
                 Text("\(Int((VerbExercises.mastery(streaks, kinds: kinds) * 100).rounded()))%")
                     .monospacedDigit()
+            }
+        } footer: {
+            if let footer { footer }
+        }
+    }
+
+    /// Verbs saved before the preterite was asked for: one tap asks the model for it.
+    private func preteriteFooter(missing: [Verb]) -> AnyView {
+        AnyView(VStack(alignment: .leading, spacing: 8) {
+            Text(missing.count == 1
+                 ? "1 verb has no preterite yet and skips these games."
+                 : "\(missing.count) verbs have no preterite yet and skip these games.")
+            if let done = preteriteProgress {
+                ProgressView(value: Double(done), total: Double(max(missing.count, 1))) {
+                    Text("Adding the preterite…")
+                }
+            } else {
+                Button {
+                    fillPreterite(missing)
+                } label: {
+                    Label("Add the preterite with AI", systemImage: "wand.and.stars")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .tint(.preterite)
+                .textCase(nil)
+            }
+        })
+    }
+
+    private func fillPreterite(_ missing: [Verb]) {
+        preteriteProgress = 0
+        Task { @MainActor in
+            defer { preteriteProgress = nil }
+            do {
+                let filled = try await VerbMaintenance.fillPreterite(missing, context: context) { done in
+                    preteriteProgress = done
+                }
+                if filled < missing.count {
+                    alertMessage = "Added the preterite to \(filled) of \(missing.count) verbs. Try again for the rest, or add it by hand from Vocabulary → Verbs."
+                }
+            } catch {
+                alertMessage = error.localizedDescription
             }
         }
     }
@@ -238,7 +292,7 @@ struct VerbsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text("\(Int((VerbExercises.mastery([verb.kindStreaks]) * 100).rounded()))%")
+                    Text("\(Int((VerbExercises.mastery([verb.progress]) * 100).rounded()))%")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -266,11 +320,11 @@ struct VerbsView: View {
     private var groupChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip(title: "All", value: VerbExercises.mastery(verbs.map(\.kindStreaks)), selected: group == nil) {
+                chip(title: "All", value: VerbExercises.mastery(verbs.map(\.progress)), selected: group == nil) {
                     group = nil
                 }
                 ForEach(verbs.groups, id: \.self) { item in
-                    let streaks = verbs.filter { $0.section == item }.map(\.kindStreaks)
+                    let streaks = verbs.filter { $0.section == item }.map(\.progress)
                     chip(title: item.label, value: VerbExercises.mastery(streaks), selected: group == item) {
                         group = item
                     }
@@ -302,7 +356,8 @@ struct VerbsView: View {
     private func start(_ policy: VerbPolicy, wantsSpeaking: Bool) {
         let kind: VerbExerciseKind?
         if case .fixed(let chosen) = policy { kind = chosen } else { kind = nil }
-        let candidates = scoped.map { $0.candidate(for: kind) }
+        // A preterite game only asks the verbs whose preterite is known.
+        let candidates = scoped.filter { kind.map($0.entry.supports) ?? true }.map { $0.candidate(for: kind) }
         Task { @MainActor in
             let allowSpeaking = wantsSpeaking ? await SpeechRecognizer.requestPermissions() : false
             if case .fixed(let kind) = policy, kind.isSpeaking, !allowSpeaking {
