@@ -33,7 +33,24 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { ReminderScheduler.reschedule() }
         }
-        .task { renameLegacyDefaults() }
+        .task {
+            renameLegacyDefaults()
+            migrateSeparableVerbs()
+        }
+    }
+
+    /// Separable used to be a group: make it a prefix of its own, read off the table, once.
+    /// Verbs whose table does not show a prefix keep none until edited or filled with AI.
+    private func migrateSeparableVerbs() {
+        let key = "migratedSeparableVerbs"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        let verbs = (try? context.fetch(FetchDescriptor<Verb>())) ?? []
+        for verb in verbs where verb.separablePrefix == nil {
+            verb.separablePrefix = SeparableVerbs.inferPrefix(infinitive: verb.infinitive, forms: verb.forms)
+            if verb.group == .separable, verb.separablePrefix != nil { verb.group = .regular }
+        }
+        try? context.save()
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     /// The default theme and phrase category used to be Italian: rename them once.

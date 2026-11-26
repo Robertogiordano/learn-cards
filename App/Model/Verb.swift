@@ -27,6 +27,8 @@ final class Verb {
     var streak: Int = 0
     /// Right answers in a row per kind of exercise, as JSON {"typeForm": 2}: the percentages.
     var kindStreaksJSON: String = ""
+    /// "auf" for "aufstehen", nil when not separable.
+    var separablePrefix: String?
 
     init(entry: VerbEntry, now: Date = .now) {
         id = entry.id
@@ -36,6 +38,7 @@ final class Verb {
         groupRaw = entry.group.rawValue
         note = entry.note
         emoji = entry.emoji
+        separablePrefix = entry.separablePrefix
         createdAt = now
         updatedAt = now
         let fresh = SRSState.new(now: now)
@@ -55,6 +58,7 @@ final class Verb {
         groupRaw = backup.group.rawValue
         note = backup.note
         emoji = backup.emoji
+        separablePrefix = backup.separablePrefix
         createdAt = backup.createdAt
         updatedAt = backup.updatedAt
         ease = backup.srs.ease
@@ -73,7 +77,8 @@ final class Verb {
     }
 
     var entry: VerbEntry {
-        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, group: group, note: note, emoji: emoji)
+        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, group: group, note: note,
+                  emoji: emoji, separablePrefix: separablePrefix)
     }
 
     var dedupeKey: String { entry.dedupeKey }
@@ -130,6 +135,7 @@ final class Verb {
         group = entry.group
         note = entry.note
         emoji = entry.emoji
+        separablePrefix = entry.separablePrefix
         updatedAt = .now
     }
 
@@ -143,10 +149,15 @@ final class Verb {
     }
 }
 
+extension Verb {
+    /// Separable verbs have their own section, whatever their group.
+    var section: VerbGroup { entry.section }
+}
+
 extension Array where Element == Verb {
-    /// Groups present in the list, in the order of `VerbGroup`.
+    /// Sections present in the list, in the order of `VerbGroup` (separable verbs on their own).
     var groups: [VerbGroup] {
-        let present = Set(map(\.group))
+        let present = Set(map(\.section))
         return VerbGroup.allCases.filter { present.contains($0) }
     }
 }

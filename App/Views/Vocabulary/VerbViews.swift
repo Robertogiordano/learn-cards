@@ -47,6 +47,14 @@ struct VerbSummary: View {
                     Text(verb.english)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    if let prefix = verb.separablePrefix {
+                        Text(prefix + " …")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                            .accessibilityLabel("Separable: \(prefix)")
+                    }
                 }
                 ConjugationGrid(verb: verb)
                 if let note = verb.note {
@@ -68,6 +76,7 @@ struct VerbEditView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: VerbEntry
     @State private var noteText: String
+    @State private var prefixText: String
     @State private var isFilling = false
     @State private var fillMessage: String?
     @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
@@ -77,8 +86,15 @@ struct VerbEditView: View {
         self.onSave = onSave
         var entry = entry
         while entry.forms.count < Person.allCases.count { entry.forms.append("") }
+        if entry.group == .separable {
+            // Saved before separable became a flag of its own.
+            entry.separablePrefix = entry.separablePrefix
+                ?? SeparableVerbs.inferPrefix(infinitive: entry.infinitive, forms: entry.forms)
+            entry.group = .regular
+        }
         _draft = State(initialValue: entry)
         _noteText = State(initialValue: entry.note ?? "")
+        _prefixText = State(initialValue: entry.separablePrefix ?? "")
     }
 
     private var isValid: Bool {
@@ -105,7 +121,7 @@ struct VerbEditView: View {
                 } header: {
                     Text("Verb")
                 } footer: {
-                    Text("Type the verb, then “Fill in with AI” adds translation, present tense, group, note and emoji. Check them before saving.")
+                    Text("Type the verb, then “Fill in with AI” adds translation, present tense, group, separable prefix, note and emoji. Check them before saving.")
                 }
                 Section {
                     ForEach(Person.allCases, id: \.self) { person in
@@ -123,9 +139,23 @@ struct VerbEditView: View {
                 } footer: {
                     Text("Separable verbs with the prefix at the end (“stehe auf”), reflexive ones with the pronoun (“wasche mich”).")
                 }
+                Section {
+                    HStack {
+                        Text("Prefix")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 80, alignment: .leading)
+                        TextField("e.g. auf, an, mit", text: $prefixText)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                } header: {
+                    Text("Separable")
+                } footer: {
+                    Text("The prefix that goes to the end (“auf” in “aufstehen”). Empty if the verb is not separable.")
+                }
                 Section("Other") {
                     Picker("Group", selection: $draft.group) {
-                        ForEach(VerbGroup.allCases, id: \.self) { Text($0.label).tag($0) }
+                        ForEach(VerbGroup.baseGroups, id: \.self) { Text($0.label).tag($0) }
                     }
                     TextField("Note", text: $noteText, axis: .vertical)
                     TextField("Emoji", text: $draft.emoji)
@@ -166,6 +196,7 @@ struct VerbEditView: View {
                 draft.group = found.group
                 draft.emoji = found.emoji
                 noteText = found.note ?? ""
+                prefixText = found.separablePrefix ?? ""
             } catch {
                 fillMessage = error.localizedDescription
             }
@@ -178,6 +209,7 @@ struct VerbEditView: View {
         entry.english = draft.english.trimmed
         entry.forms = draft.forms.map(\.trimmed)
         entry.note = noteText.trimmed.isEmpty ? nil : noteText.trimmed
+        entry.separablePrefix = SeparableVerbs.clean(prefixText)
         entry.emoji = entry.emoji.trimmed.first.map(String.init) ?? "🏃"
         onSave(entry)
         dismiss()
@@ -236,6 +268,9 @@ struct ReviewVerbsView: View {
                             VerbSummary(verb: item.entry)
                             HStack(spacing: 6) {
                                 Text(item.entry.group.label)
+                                if let prefix = item.entry.separablePrefix {
+                                    Text("· separable (\(prefix))")
+                                }
                                 if existingByKey[item.entry.dedupeKey] != nil {
                                     Text("· already saved").foregroundStyle(.orange)
                                 }
@@ -311,7 +346,7 @@ struct ReviewVerbItem: Identifiable {
     var id: UUID { entry.id }
 }
 
-/// Saved verbs grouped by group: edit, delete, add by hand.
+/// Saved verbs grouped by group, separable verbs in a section of their own: edit, delete, add by hand.
 struct VerbsListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Verb.infinitive) private var verbs: [Verb]
@@ -328,7 +363,7 @@ struct VerbsListView: View {
                     .listRowBackground(Color.clear)
             }
             ForEach(visible.groups, id: \.self) { group in
-                let items = visible.filter { $0.group == group }
+                let items = visible.filter { $0.section == group }
                 Section {
                     ForEach(items) { verb in
                         Button { editing = verb } label: {

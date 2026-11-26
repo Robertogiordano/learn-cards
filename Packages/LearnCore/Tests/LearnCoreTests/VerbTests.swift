@@ -156,4 +156,42 @@ final class VerbTests: XCTestCase {
                                createdAt: base, updatedAt: base.addingTimeInterval(5), srs: .new(now: base))
         XCTAssertEqual(BackupVerbMerger.merge(existing: [stored], incoming: [newer]).updates.map(\.id), [stored.id])
     }
+
+    func testSeparablePrefix() throws {
+        let json = """
+        {"verbs": [
+          {"infinitive": "anfangen", "english": "begin", "forms": ["fange an","fängst an","fängt an","fangen an","fangt an","fangen an"],
+           "group": "stemChanging", "separablePrefix": " An ", "note": null, "emoji": "🏁"},
+          {"infinitive": "aufstehen", "english": "get up", "forms": ["stehe auf","stehst auf","steht auf","stehen auf","steht auf","stehen auf"],
+           "group": "separable", "note": null, "emoji": "⏰"},
+          {"infinitive": "verstehen", "english": "understand", "forms": ["verstehe","verstehst","versteht","verstehen","versteht","verstehen"],
+           "group": "regular", "separablePrefix": null, "note": null, "emoji": "💡"}
+        ]}
+        """
+        let verbs = try VerbExtractionParser.parse(json)
+        XCTAssertEqual(verbs[0].separablePrefix, "an")
+        XCTAssertEqual(verbs[0].group, .stemChanging)
+        XCTAssertEqual(verbs[0].section, .separable)
+        // An older answer with the separable group: flag kept, prefix read off the table.
+        XCTAssertEqual(verbs[1].separablePrefix, "auf")
+        XCTAssertEqual(verbs[1].group, .regular)
+        XCTAssertNil(verbs[2].separablePrefix)
+        XCTAssertEqual(verbs[2].section, .regular)
+        XCTAssertFalse(VerbGroup.baseGroups.contains(.separable))
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(VerbExtractionPrompt.responseSchema))
+    }
+
+    func testInferPrefix() {
+        XCTAssertEqual(SeparableVerbs.inferPrefix(infinitive: "aufstehen", forms: aufstehen.forms), "auf")
+        XCTAssertEqual(SeparableVerbs.inferPrefix(infinitive: "sich anziehen", forms: ["ziehe mich an"]), "an")
+        XCTAssertNil(SeparableVerbs.inferPrefix(infinitive: "sich waschen", forms: ["wasche mich"]))
+        XCTAssertNil(SeparableVerbs.inferPrefix(infinitive: "fahren", forms: fahren.forms))
+    }
+
+    func testBackupKeepsPrefix() throws {
+        let verb = VerbEntry(infinitive: "anrufen", english: "call", forms: aufstehen.forms, separablePrefix: "an")
+        let backup = BackupVerb(entry: verb, createdAt: .now, updatedAt: .now, srs: .new(now: .now))
+        let decoded = try JSONDecoder().decode(BackupVerb.self, from: JSONEncoder().encode(backup))
+        XCTAssertEqual(decoded.entry.separablePrefix, "an")
+    }
 }

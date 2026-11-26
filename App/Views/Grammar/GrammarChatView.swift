@@ -9,8 +9,63 @@ struct GrammarChatView: View {
     /// Opened from the lesson: shows a Close button instead of relying on the back button.
     var isSheet = false
 
-    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = GrammarPillStore.shared
+
+    var body: some View {
+        if let pill = store.pill(pillID) {
+            TutorChatView(chat: chat(for: pill), isSheet: isSheet)
+        } else {
+            ContentUnavailableView("Pill deleted", systemImage: "trash")
+                .navigationTitle("Ask the tutor")
+        }
+    }
+
+    private func chat(for pill: GrammarPill) -> TutorChat {
+        let pillID = pill.id
+        return TutorChat(
+            intro: "Ask anything about \(pill.lesson.title), in Italian or English. Tap the camera to send a page of your book.",
+            suggestions: GrammarChatPrompt.suggestions(for: pill),
+            messages: pill.chat,
+            allowsPhotos: true,
+            clearMessage: "The questions and answers about this pill are removed.",
+            append: { message in GrammarPillStore.shared.update(pillID) { $0.chat.append(message) } },
+            clear: {
+                let store = GrammarPillStore.shared
+                GrammarChatImageStore.delete(store.pill(pillID)?.chat.compactMap(\.imageName) ?? [])
+                store.update(pillID) { $0.chat = [] }
+            },
+            answer: { key, history in
+                guard let pill = GrammarPillStore.shared.pill(pillID) else { throw CancellationError() }
+                return try await OpenRouterClient(apiKey: key, model: OpenRouterModels.grammarModel())
+                    .grammarChat(pill: pill, history: history)
+            }
+        )
+    }
+}
+
+/// What a tutor chat is about: its messages, where they are kept and how answers are asked for.
+struct TutorChat {
+    var intro: String
+    /// Ready-made questions, shown while the chat is empty.
+    var suggestions: [String]
+    var messages: [GrammarChatMessage]
+    /// Whether the learner can send a photo with a question.
+    var allowsPhotos: Bool
+    /// What "Clear chat" removes, for its confirmation.
+    var clearMessage: String
+    var append: (GrammarChatMessage) -> Void
+    var clear: () -> Void
+    /// The tutor's answer to the conversation so far, with the OpenRouter key.
+    var answer: (_ key: String, _ history: [GrammarChatMessage]) async throws -> String
+}
+
+/// A chat with the tutor: bubbles, ready-made questions, an optional photo and the input bar.
+struct TutorChatView: View {
+    let chat: TutorChat
+    /// Opened as a sheet: shows a Close button instead of relying on the back button.
+    var isSheet = false
+
+    @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
     @State private var isWaiting = false
     @State private var errorMessage: String?
@@ -21,64 +76,53 @@ struct GrammarChatView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var showsCamera = false
 
-    private var pill: GrammarPill? { store.pill(pillID) }
-
     var body: some View {
-        Group {
-            if let pill {
-                conversation(pill)
-            } else {
-                ContentUnavailableView("Pill deleted", systemImage: "trash")
-            }
-        }
-        .navigationTitle("Ask the tutor")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if isSheet {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+        conversation
+            .navigationTitle("Ask the tutor")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if isSheet {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { dismiss() }
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("Clear chat", systemImage: "trash", role: .destructive) { confirmsClear = true }
+                            .disabled(chat.messages.isEmpty)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button("Clear chat", systemImage: "trash", role: .destructive) { confirmsClear = true }
-                        .disabled(pill?.chat.isEmpty ?? true)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+            .onChange(of: pickerItem) { _, item in
+                guard let item else { return }
+                Task { @MainActor in
+                    defer { pickerItem = nil }
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                        pendingImage = image
+                    } else {
+                        errorMessage = "Could not read the image."
+                    }
                 }
             }
-        }
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
-            Task { @MainActor in
-                defer { pickerItem = nil }
-                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    pendingImage = image
-                } else {
-                    errorMessage = "Could not read the image."
-                }
+            .fullScreenCover(isPresented: $showsCamera) {
+                CameraPicker { image in pendingImage = image }
+                    .ignoresSafeArea()
             }
-        }
-        .fullScreenCover(isPresented: $showsCamera) {
-            CameraPicker { image in pendingImage = image }
-                .ignoresSafeArea()
-        }
-        .confirmationDialog("Clear this chat?", isPresented: $confirmsClear, titleVisibility: .visible) {
-            Button("Clear", role: .destructive) {
-                GrammarChatImageStore.delete(pill?.chat.compactMap(\.imageName) ?? [])
-                store.update(pillID) { $0.chat = [] }
+            .confirmationDialog("Clear this chat?", isPresented: $confirmsClear, titleVisibility: .visible) {
+                Button("Clear", role: .destructive) { chat.clear() }
+            } message: {
+                Text(chat.clearMessage)
             }
-        } message: {
-            Text("The questions and answers about this pill are removed.")
-        }
     }
 
-    private func conversation(_ pill: GrammarPill) -> some View {
+    private var conversation: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    intro(pill)
-                    ForEach(pill.chat) { message in
+                    intro
+                    ForEach(chat.messages) { message in
                         bubble(message).id(message.id)
                     }
                     if isWaiting {
@@ -102,8 +146,8 @@ struct GrammarChatView: View {
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
-            .onAppear { scrollToEnd(proxy, pill: pill, animated: false) }
-            .onChange(of: pill.chat.count) { _, _ in scrollToEnd(proxy, pill: pill, animated: true) }
+            .onAppear { scrollToEnd(proxy, animated: false) }
+            .onChange(of: chat.messages.count) { _, _ in scrollToEnd(proxy, animated: true) }
             .onChange(of: isWaiting) { _, waiting in
                 if waiting { withAnimation { proxy.scrollTo("waiting", anchor: .bottom) } }
             }
@@ -111,15 +155,14 @@ struct GrammarChatView: View {
         }
     }
 
-    @ViewBuilder
-    private func intro(_ pill: GrammarPill) -> some View {
+    private var intro: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Ask anything about \(pill.lesson.title), in Italian or English. Tap the camera to send a page of your book.", systemImage: "bubble.left.and.text.bubble.right")
+            Label(chat.intro, systemImage: "bubble.left.and.text.bubble.right")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            if pill.chat.isEmpty {
+            if chat.messages.isEmpty {
                 FlowLayout(spacing: 8) {
-                    ForEach(GrammarChatPrompt.suggestions(for: pill), id: \.self) { suggestion in
+                    ForEach(chat.suggestions, id: \.self) { suggestion in
                         Button(suggestion) { send(suggestion) }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -175,18 +218,20 @@ struct GrammarChatView: View {
                 }
             }
             HStack(alignment: .bottom, spacing: 8) {
-                Menu {
-                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        Button("Take a photo", systemImage: "camera") { showsCamera = true }
+                if chat.allowsPhotos {
+                    Menu {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            Button("Take a photo", systemImage: "camera") { showsCamera = true }
+                        }
+                        PhotosPicker(selection: $pickerItem, matching: .images) {
+                            Label("Choose from library", systemImage: "photo")
+                        }
+                    } label: {
+                        Image(systemName: "camera.circle").font(.system(size: 32))
                     }
-                    PhotosPicker(selection: $pickerItem, matching: .images) {
-                        Label("Choose from library", systemImage: "photo")
-                    }
-                } label: {
-                    Image(systemName: "camera.circle").font(.system(size: 32))
+                    .disabled(isWaiting)
+                    .accessibilityLabel("Add a photo")
                 }
-                .disabled(isWaiting)
-                .accessibilityLabel("Add a photo")
                 messageField
             }
         }
@@ -213,8 +258,8 @@ struct GrammarChatView: View {
         }
     }
 
-    private func scrollToEnd(_ proxy: ScrollViewProxy, pill: GrammarPill, animated: Bool) {
-        guard let last = pill.chat.last?.id else { return }
+    private func scrollToEnd(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard let last = chat.messages.last?.id else { return }
         if animated {
             withAnimation { proxy.scrollTo(last, anchor: .bottom) }
         } else {
@@ -225,6 +270,7 @@ struct GrammarChatView: View {
     /// Sends a new question, or asks again for the last unanswered one when `text` is nil.
     private func send(_ text: String?) {
         guard !isWaiting else { return }
+        var history = chat.messages
         if let question = text?.trimmed, !question.isEmpty || pendingImage != nil {
             var imageName: String?
             if let pendingImage {
@@ -236,11 +282,13 @@ struct GrammarChatView: View {
                 }
                 imageName = name
             }
-            store.update(pillID) { $0.chat.append(GrammarChatMessage(role: .user, text: question, imageName: imageName)) }
+            let message = GrammarChatMessage(role: .user, text: question, imageName: imageName)
+            chat.append(message)
+            history.append(message)
             draft = ""
             pendingImage = nil
         }
-        guard let pill, pill.chat.last?.role == .user else { return }
+        guard history.last?.role == .user else { return }
         // The question stays in the chat, so Try again works once the key is set.
         guard let key = Secrets.openRouterKey else {
             errorMessage = OpenRouterClient.ClientError.missingAPIKey.localizedDescription
@@ -248,12 +296,13 @@ struct GrammarChatView: View {
         }
         isWaiting = true
         errorMessage = nil
+        let answer = chat.answer
+        let append = chat.append
         Task { @MainActor in
             defer { isWaiting = false }
             do {
-                let answer = try await OpenRouterClient(apiKey: key, model: OpenRouterModels.grammarModel())
-                    .grammarChat(pill: pill, history: pill.chat)
-                store.update(pillID) { $0.chat.append(GrammarChatMessage(role: .assistant, text: answer.trimmed)) }
+                let text = try await answer(key, history)
+                append(GrammarChatMessage(role: .assistant, text: text.trimmed))
             } catch {
                 errorMessage = error.localizedDescription
             }

@@ -50,6 +50,28 @@ public enum VerbGroup: String, CaseIterable, Codable, Hashable, Sendable {
         case .reflexive: return "Reflexive"
         }
     }
+
+    /// Groups describing the base verb; separable is a separate flag (`VerbEntry.separablePrefix`).
+    public static var baseGroups: [VerbGroup] { allCases.filter { $0 != .separable } }
+}
+
+public enum SeparableVerbs {
+    /// Trimmed, lowercased prefix, nil when empty.
+    public static func clean(_ prefix: String?) -> String? {
+        let trimmed = (prefix ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// The prefix read off the table: "stehe auf" for "aufstehen" gives "auf".
+    /// For verbs saved before the prefix was stored.
+    public static func inferPrefix(infinitive: String, forms: [String]) -> String? {
+        let base = infinitive.lowercased().split(separator: " ").last.map(String.init) ?? ""
+        guard let first = forms.first,
+              let last = first.lowercased().split(separator: " ").last.map(String.init),
+              first.split(separator: " ").count > 1,
+              base.hasPrefix(last), base.count > last.count else { return nil }
+        return last
+    }
 }
 
 /// A verb with its present tense, independent of how it is stored.
@@ -64,9 +86,13 @@ public struct VerbEntry: Codable, Hashable, Identifiable, Sendable {
     /// What to watch out for ("e → i in du and er", "separable: auf goes to the end").
     public var note: String?
     public var emoji: String
+    /// The prefix that goes to the end ("auf" in "aufstehen"), nil when the verb is not separable.
+    /// Separable is independent of the group: "anfangen" is separable and stem-changing.
+    public var separablePrefix: String?
 
     public init(id: UUID = UUID(), infinitive: String, english: String, forms: [String],
-                group: VerbGroup = .regular, note: String? = nil, emoji: String = "🏃") {
+                group: VerbGroup = .regular, note: String? = nil, emoji: String = "🏃",
+                separablePrefix: String? = nil) {
         self.id = id
         self.infinitive = infinitive
         self.english = english
@@ -74,7 +100,13 @@ public struct VerbEntry: Codable, Hashable, Identifiable, Sendable {
         self.group = group
         self.note = note
         self.emoji = emoji
+        self.separablePrefix = SeparableVerbs.clean(separablePrefix)
     }
+
+    public var isSeparable: Bool { separablePrefix != nil || group == .separable }
+
+    /// Where the verb is listed: separable verbs have their own section, whatever their group.
+    public var section: VerbGroup { isSeparable ? .separable : group }
 
     public func form(for person: Person) -> String {
         person.rawValue < forms.count ? forms[person.rawValue] : ""
@@ -355,9 +387,14 @@ public enum VerbExtractionPrompt {
         - forms: the present tense (Präsens) exactly as written after the pronoun, in this order: \
         ich, du, er/sie/es, wir, ihr, sie/Sie. Separable verbs with the prefix at the end \
         ("stehe auf"), reflexive verbs with the reflexive pronoun ("wasche mich", "wäschst dich").
-        - group: one of "modal", "separable", "reflexive", "irregular", "stemChanging", "regular" \
-        (choose the first that applies in this order; sein, haben and werden are "irregular", \
-        verbs changing vowel in du/er like fahren or sprechen are "stemChanging").
+        - group: one of "modal", "reflexive", "irregular", "stemChanging", "regular", for the verb \
+        without its separable prefix (choose the first that applies in this order; sein, haben and \
+        werden are "irregular", verbs changing vowel in du/er like fahren or sprechen are \
+        "stemChanging", so "anfangen" is "stemChanging" and "sich anziehen" is "reflexive").
+        - separablePrefix: for separable verbs the prefix that goes to the end of the sentence, \
+        lowercase ("auf" for "aufstehen", "an" for "sich anziehen", "zurück" for "zurückkommen"); \
+        null for verbs that are not separable, including inseparable prefixes (be-, ver-, er-, \
+        ent-, ge-, zer-, emp-, miss-: "verstehen" is null).
         - note: in English, at most 8 words on what to watch out for (e.g. "a → ä with du and er"), null if regular.
         - emoji: exactly ONE emoji that evokes the verb.
         """
@@ -371,15 +408,15 @@ public enum VerbExtractionPrompt {
         let string: [String: Any] = ["type": "string"]
         let nullableString: [String: Any] = ["type": ["string", "null"]]
         let forms: [String: Any] = ["type": "array", "items": string, "minItems": 6, "maxItems": 6]
-        let group: [String: Any] = ["type": "string", "enum": VerbGroup.allCases.map(\.rawValue)]
+        let group: [String: Any] = ["type": "string", "enum": VerbGroup.baseGroups.map(\.rawValue)]
         let properties: [String: Any] = [
             "infinitive": string, "english": string, "forms": forms, "group": group,
-            "note": nullableString, "emoji": string,
+            "separablePrefix": nullableString, "note": nullableString, "emoji": string,
         ]
         let verb: [String: Any] = [
             "type": "object",
             "properties": properties,
-            "required": ["infinitive", "english", "forms", "group", "note", "emoji"],
+            "required": ["infinitive", "english", "forms", "group", "separablePrefix", "note", "emoji"],
             "additionalProperties": false,
         ]
         let verbs: [String: Any] = ["type": "array", "items": verb]
@@ -444,13 +481,21 @@ public enum VerbExtractionParser {
         guard !infinitive.isEmpty, !english.isEmpty, forms.count == Person.allCases.count,
               forms.allSatisfy({ !$0.isEmpty }) else { return nil }
         let note = clean(raw.note)
+        var group = VerbGroup(rawValue: clean(raw.group)) ?? .regular
+        var prefix = SeparableVerbs.clean(raw.separablePrefix)
+        if group == .separable {
+            // Older answers put separable verbs in their own group: keep the flag, not the group.
+            group = .regular
+            prefix = prefix ?? SeparableVerbs.inferPrefix(infinitive: infinitive, forms: forms)
+        }
         return VerbEntry(
             infinitive: infinitive,
             english: english.hasPrefix("to ") ? String(english.dropFirst(3)) : english,
             forms: forms,
-            group: VerbGroup(rawValue: clean(raw.group)) ?? .regular,
+            group: group,
             note: note.isEmpty ? nil : note,
-            emoji: clean(raw.emoji).first.map(String.init) ?? "🏃"
+            emoji: clean(raw.emoji).first.map(String.init) ?? "🏃",
+            separablePrefix: prefix
         )
     }
 
@@ -468,11 +513,12 @@ private struct RawVerb: Decodable {
     let english: String?
     let forms: [String]
     let group: String?
+    let separablePrefix: String?
     let note: String?
     let emoji: String?
 
     enum CodingKeys: String, CodingKey {
-        case infinitive, english, forms, group, note, emoji
+        case infinitive, english, forms, group, separablePrefix, note, emoji
     }
 
     init(from decoder: Decoder) throws {
@@ -483,6 +529,7 @@ private struct RawVerb: Decodable {
         infinitive = string(.infinitive)
         english = string(.english)
         group = string(.group)
+        separablePrefix = string(.separablePrefix)
         note = string(.note)
         emoji = string(.emoji)
         if let list = try? container.decode([String].self, forKey: .forms) {
@@ -507,6 +554,8 @@ public struct BackupVerb: Codable, Hashable, Sendable {
     public var group: VerbGroup
     public var note: String?
     public var emoji: String
+    /// Missing in backups made before separable verbs had their own flag.
+    public var separablePrefix: String?
     public var createdAt: Date
     public var updatedAt: Date
     public var srs: SRSState
@@ -523,6 +572,7 @@ public struct BackupVerb: Codable, Hashable, Sendable {
         group = entry.group
         note = entry.note
         emoji = entry.emoji
+        separablePrefix = entry.separablePrefix
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.srs = srs
@@ -531,7 +581,8 @@ public struct BackupVerb: Codable, Hashable, Sendable {
     }
 
     public var entry: VerbEntry {
-        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, group: group, note: note, emoji: emoji)
+        VerbEntry(id: id, infinitive: infinitive, english: english, forms: forms, group: group, note: note,
+                  emoji: emoji, separablePrefix: separablePrefix)
     }
 
     public var streaksByKind: [VerbExerciseKind: Int] {

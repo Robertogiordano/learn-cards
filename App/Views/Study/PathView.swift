@@ -129,6 +129,11 @@ struct PathView: View {
                 } label: {
                     WordOrderRow()
                 }
+                NavigationLink {
+                    SeparableVerbsView()
+                } label: {
+                    SeparableVerbsRow()
+                }
             }
 
             Section("Word sets") {

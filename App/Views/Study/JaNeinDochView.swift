@@ -156,11 +156,14 @@ private struct YesNoSessionView: View {
                 if isFinished {
                     finished
                 } else {
-                    ScrollView {
-                        question(round.questions[index])
-                            .padding()
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            question(round.questions[index])
+                                .padding()
+                        }
+                        .scrollDismissesKeyboard(.interactively)
+                        .scrollToFeedback(when: verdict != nil, proxy: proxy)
                     }
-                    .scrollDismissesKeyboard(.interactively)
                 }
             }
             .toolbar {
@@ -197,6 +200,7 @@ private struct YesNoSessionView: View {
                 YesNoFeedbackPanel(question: question, verdict: verdict, given: given,
                                    canOverride: round.mode == .write,
                                    onOverride: overrideAsCorrect, onContinue: advance)
+                    .id(FeedbackAnchor.id)
             }
         }
         .id(index)
@@ -254,6 +258,7 @@ private struct YesNoPromptCard: View {
                     .background(Circle().fill(question.wantsYes ? Color.green : Color.red))
                     .accessibilityLabel(question.wantsYes ? "positive" : "negative")
             }
+            EnglishLine(text: question.englishQuestion)
             Button {
                 Speaker.shared.speak(question.question)
             } label: {
@@ -284,10 +289,14 @@ private struct YesNoChoiceView: View {
                     selected = option
                     onSelect(option)
                 } label: {
-                    Text(option)
-                        .font(.body.weight(.medium))
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(option)
+                            .font(.body.weight(.medium))
+                        EnglishLine(text: question.english(for: option), alignment: .leading)
+                    }
+                    .multilineTextAlignment(.leading)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                         .padding(.horizontal, 14)
                         .background(background(for: option), in: RoundedRectangle(cornerRadius: 14))
                 }
@@ -417,6 +426,7 @@ private struct YesNoFeedbackPanel: View {
                 }
                 .buttonStyle(.borderless)
             }
+            EnglishLine(text: question.englishAnswer)
 
             Text(reason)
                 .font(.footnote)
@@ -438,6 +448,37 @@ private struct YesNoFeedbackPanel: View {
         .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 20))
         .onAppear {
             if autoSpeak { Speaker.shared.speak(question.answer) }
+        }
+    }
+}
+
+/// The English of a German sentence, under it; nothing when there is no translation.
+struct EnglishLine: View {
+    let text: String?
+    var alignment: TextAlignment = .center
+
+    var body: some View {
+        if let text {
+            Text(text)
+                .font(.subheadline.italic())
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(alignment)
+                .accessibilityLabel("In English: \(text)")
+        }
+    }
+}
+
+/// Brings the feedback panel into view once an answer is graded: with translations the
+/// options can push it below the screen.
+enum FeedbackAnchor {
+    static let id = "feedback"
+}
+
+extension View {
+    func scrollToFeedback(when isShown: Bool, proxy: ScrollViewProxy) -> some View {
+        onChange(of: isShown) { _, shown in
+            guard shown else { return }
+            withAnimation(.snappy) { proxy.scrollTo(FeedbackAnchor.id, anchor: .bottom) }
         }
     }
 }

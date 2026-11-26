@@ -23,15 +23,47 @@ public struct YesNoQuestion: Hashable, Identifiable, Sendable {
     let negativeClause: String
     /// Emoji of the word the question is built on, for the card.
     public let emoji: String
+    /// The English of the question and of its clauses; nil when the word has no usable translation.
+    let english: English?
 
-    public init(question: String, isNegated: Bool, wantsYes: Bool,
-                positiveClause: String, negativeClause: String, emoji: String = "💬") {
+    /// "Don't you have a printer?" with "I have a printer", "I do have a printer", "I don't have a printer".
+    struct English: Hashable, Sendable {
+        let question: String
+        let positive: String
+        let emphatic: String
+        let negative: String
+    }
+
+    init(question: String, isNegated: Bool, wantsYes: Bool,
+         positiveClause: String, negativeClause: String, emoji: String = "💬", english: English? = nil) {
         self.question = question
         self.isNegated = isNegated
         self.wantsYes = wantsYes
         self.positiveClause = positiveClause
         self.negativeClause = negativeClause
         self.emoji = emoji
+        self.english = english
+    }
+
+    /// "Don't you have a printer?"
+    public var englishQuestion: String? { english?.question }
+
+    /// The English of the answer to give.
+    public var englishAnswer: String? { english(for: answer) }
+
+    /// The English of any of the sentences built from this question (the answer or a wrong option).
+    public func english(for sentence: String) -> String? {
+        guard let english else { return nil }
+        for word in AnswerWord.allCases {
+            if sentence == Self.sentence(word, positiveClause) {
+                let yes = word == .nein ? "No" : "Yes"
+                return "\(yes), \(word == .doch ? english.emphatic : english.positive)."
+            }
+            if sentence == Self.sentence(word, negativeClause) {
+                return "\(word == .nein ? "No" : "Yes"), \(english.negative)."
+            }
+        }
+        return nil
     }
 
     /// Ja to a positive question, doch to a negated one; nein whenever the answer is negative.
@@ -83,13 +115,14 @@ public struct YesNoQuestion: Hashable, Identifiable, Sendable {
 struct ObjectFrame: Sendable {
     let du: String
     let ich: String
+    let english: EnglishVerb
 
     static let all: [ObjectFrame] = [
-        .init(du: "Hast", ich: "habe"),
-        .init(du: "Brauchst", ich: "brauche"),
-        .init(du: "Möchtest", ich: "möchte"),
-        .init(du: "Kaufst", ich: "kaufe"),
-        .init(du: "Suchst", ich: "suche"),
+        .init(du: "Hast", ich: "habe", english: EnglishVerb(base: "have")),
+        .init(du: "Brauchst", ich: "brauche", english: EnglishVerb(base: "need")),
+        .init(du: "Möchtest", ich: "möchte", english: .wouldLike),
+        .init(du: "Kaufst", ich: "kaufe", english: EnglishVerb(base: "buy")),
+        .init(du: "Suchst", ich: "suche", english: EnglishVerb(base: "look for")),
     ]
 }
 
@@ -124,7 +157,10 @@ public enum YesNoQuiz {
             wantsYes: wantsYes,
             positiveClause: "Ich \(frame.ich) \(indefinite) \(noun.german).",
             negativeClause: "Ich \(frame.ich) \(negative) \(noun.german).",
-            emoji: noun.emoji
+            emoji: noun.emoji,
+            english: noun.english.first.flatMap(EnglishGloss.indefinite).map { object in
+                english(frame.english, object: object, negated: negated)
+            }
         )
     }
 
@@ -139,7 +175,21 @@ public enum YesNoQuiz {
             wantsYes: wantsYes,
             positiveClause: "Ich \(ich) gern.",
             negativeClause: "Ich \(ich) nicht gern.",
-            emoji: verb.emoji
+            emoji: verb.emoji,
+            english: EnglishGloss.verbBase(verb.english).map { base in
+                english(EnglishVerb(base: "like to \(base)"), object: nil, negated: negated)
+            }
+        )
+    }
+
+    /// "Do you have a printer?" / "I have a printer" / "I do have a printer" / "I don't have a printer".
+    static func english(_ verb: EnglishVerb, object: String?, negated: Bool) -> YesNoQuestion.English {
+        let tail = object.map { " " + $0 } ?? ""
+        return YesNoQuestion.English(
+            question: verb.question(subject: "you", thirdPerson: false, negated: negated) + tail + "?",
+            positive: "I " + verb.present(thirdPerson: false) + tail,
+            emphatic: "I " + verb.emphatic(thirdPerson: false) + tail,
+            negative: "I " + verb.negative(thirdPerson: false) + tail
         )
     }
 

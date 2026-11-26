@@ -65,3 +65,28 @@ final class WordOrderTests: XCTestCase {
         XCTAssertTrue(WordOrderQuiz.make(count: 5, pattern: nil, nouns: [], verbs: [waschen], using: &rng).isEmpty)
     }
 }
+
+final class WordOrderChatPromptTests: XCTestCase {
+    let exercise = WordOrderExercise(pattern: .statement, tiles: ["auf", "ich", "um 8 Uhr", "stehe"],
+                                     answer: "Ich stehe um 8 Uhr auf.",
+                                     accepted: ["Ich stehe um 8 Uhr auf.", "Um 8 Uhr stehe ich auf."],
+                                     emoji: "⏰", prefix: "auf", english: "I get up at 8 o'clock.")
+
+    func testBeforeAnsweringTheSolutionIsKeptBack() {
+        let prompt = WordOrderChatPrompt.system(for: exercise, attempt: nil)
+        XCTAssertTrue(prompt.contains("[auf] [ich] [um 8 Uhr] [stehe]"))
+        XCTAssertTrue(prompt.contains("do not give it away"))
+        XCTAssertEqual(WordOrderChatPrompt.suggestions(for: exercise, attempt: nil).first, "Give me a hint")
+    }
+
+    func testAfterAMistakeItKnowsTheAttempt() {
+        let attempt = WordOrderChatPrompt.Attempt(sentence: "Um 8 Uhr ich stehe auf.", isRight: false)
+        let prompt = WordOrderChatPrompt.system(for: exercise, attempt: attempt)
+        XCTAssertTrue(prompt.contains("built: \"Um 8 Uhr ich stehe auf.\", which is wrong"))
+        XCTAssertTrue(prompt.contains("Ich stehe um 8 Uhr auf. or Um 8 Uhr stehe ich auf."))
+        XCTAssertTrue(prompt.contains("I get up at 8 o'clock."))
+        let suggestions = WordOrderChatPrompt.suggestions(for: exercise, attempt: attempt)
+        XCTAssertEqual(suggestions.first, "Why is “Um 8 Uhr ich stehe auf.” wrong?")
+        XCTAssertTrue(suggestions.contains("Why does “auf” go at the end?"))
+    }
+}

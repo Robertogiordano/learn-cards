@@ -130,6 +130,9 @@ private struct WordOrderSessionView: View {
     @State private var verdict: Verdict?
     @State private var given = ""
     @State private var correctCount = 0
+    /// One tutor conversation per exercise, kept for the session only.
+    @State private var chats: [Int: [GrammarChatMessage]] = [:]
+    @State private var showsChat = false
 
     private var isFinished: Bool { index >= round.exercises.count }
 
@@ -139,9 +142,12 @@ private struct WordOrderSessionView: View {
                 if isFinished {
                     finished
                 } else {
-                    ScrollView {
-                        exercise(round.exercises[index])
-                            .padding()
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            exercise(round.exercises[index])
+                                .padding()
+                        }
+                        .scrollToFeedback(when: verdict != nil, proxy: proxy)
                     }
                 }
             }
@@ -156,8 +162,44 @@ private struct WordOrderSessionView: View {
                             .frame(width: 160)
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    if !isFinished {
+                        Button {
+                            showsChat = true
+                        } label: {
+                            Image(systemName: "bubble.left.and.text.bubble.right")
+                        }
+                        .accessibilityLabel("Ask the tutor")
+                    }
+                }
+            }
+            .sheet(isPresented: $showsChat) {
+                if !isFinished {
+                    NavigationStack {
+                        TutorChatView(chat: tutorChat(for: index), isSheet: true)
+                    }
+                }
             }
         }
+    }
+
+    /// The tutor for the exercise on screen: it knows the pieces and, once checked, the attempt.
+    private func tutorChat(for index: Int) -> TutorChat {
+        let exercise = round.exercises[index]
+        let attempt = verdict.map { WordOrderChatPrompt.Attempt(sentence: given, isRight: $0 == .correct) }
+        return TutorChat(
+            intro: "Ask anything about this sentence, in Italian or English. Before you check, the tutor gives hints, not the solution.",
+            suggestions: WordOrderChatPrompt.suggestions(for: exercise, attempt: attempt),
+            messages: chats[index] ?? [],
+            allowsPhotos: false,
+            clearMessage: "The questions and answers about this sentence are removed.",
+            append: { message in chats[index, default: []].append(message) },
+            clear: { chats[index] = nil },
+            answer: { key, history in
+                try await OpenRouterClient(apiKey: key, model: OpenRouterModels.grammarModel())
+                    .tutorChat(system: WordOrderChatPrompt.system(for: exercise, attempt: attempt), history: history)
+            }
+        )
     }
 
     private func exercise(_ exercise: WordOrderExercise) -> some View {
@@ -171,6 +213,7 @@ private struct WordOrderSessionView: View {
                 Label(exercise.pattern.title, systemImage: exercise.pattern.systemImage)
                     .font(.headline)
                     .foregroundStyle(Color.wordOrder)
+                EnglishLine(text: exercise.english)
                 Text(exercise.punctuation == "?" ? "Ends with a question mark" : "Ends with a full stop")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -192,6 +235,7 @@ private struct WordOrderSessionView: View {
                     given = ""
                     index += 1
                 }
+                .id(FeedbackAnchor.id)
             }
         }
         .id(index)
@@ -257,6 +301,8 @@ private struct WordOrderFeedbackPanel: View {
                     .buttonStyle(.borderless)
                 }
             }
+            // Every accepted order means the same, so one translation covers them all.
+            EnglishLine(text: exercise.english)
 
             Text(exercise.rule)
                 .font(.footnote)

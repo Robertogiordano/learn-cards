@@ -214,6 +214,11 @@ struct OpenRouterClient {
 
     /// One answer of the pill tutor: plain text, short, with the last turns as context.
     func grammarChat(pill: GrammarPill, history: [GrammarChatMessage]) async throws -> String {
+        try await tutorChat(system: GrammarChatPrompt.system(for: pill), history: history)
+    }
+
+    /// One tutor answer: the system prompt and the latest turns of the conversation.
+    func tutorChat(system systemPrompt: String, history: [GrammarChatMessage]) async throws -> String {
         guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
         let recent = GrammarChatPrompt.recent(history)
         let turns = recent.map { message -> [String: Any] in
@@ -229,7 +234,7 @@ struct OpenRouterClient {
             ]
             return ["role": message.role.rawValue, "content": parts]
         }
-        let system: [String: Any] = ["role": "system", "content": GrammarChatPrompt.system(for: pill)]
+        let system: [String: Any] = ["role": "system", "content": systemPrompt]
         var body: [String: Any] = [
             "model": model,
             "temperature": 0.4,

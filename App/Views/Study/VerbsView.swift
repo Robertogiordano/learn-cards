@@ -61,7 +61,7 @@ struct VerbsView: View {
     private static let newPerSession = 4
 
     private var scoped: [Verb] {
-        group.map { selected in verbs.filter { $0.group == selected } } ?? verbs
+        group.map { selected in verbs.filter { $0.section == selected } } ?? verbs
     }
 
     var body: some View {
@@ -164,7 +164,7 @@ struct VerbsView: View {
                     group = nil
                 }
                 ForEach(verbs.groups, id: \.self) { item in
-                    let streaks = verbs.filter { $0.group == item }.map(\.kindStreaks)
+                    let streaks = verbs.filter { $0.section == item }.map(\.kindStreaks)
                     chip(title: item.label, value: VerbExercises.mastery(streaks), selected: group == item) {
                         group = item
                     }
