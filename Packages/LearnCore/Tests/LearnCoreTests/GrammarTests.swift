@@ -138,8 +138,8 @@ final class GrammarTests: XCTestCase {
     func testA1CourseFollowsTheBook() {
         let course = GrammarCourse.a1
         XCTAssertEqual(course.chapters.map(\.number), Array(1...9))
-        XCTAssertEqual(course.topics.count, 30)
-        XCTAssertEqual(Set(course.topics.map(\.title)).count, 30, "titles identify the pills")
+        XCTAssertEqual(course.topics.count, 31)
+        XCTAssertEqual(Set(course.topics.map(\.title)).count, 31, "titles identify the pills")
         XCTAssertTrue(course.topics.allSatisfy { $0.level == "A1" && $0.chapter != nil })
         XCTAssertEqual(course.chapter(9)?.topics.last?.title, "Verbs for positions and directions (Verben für Positionen und Richtungen)")
         let text = GrammarPrompt.lessonInstruction(for: course.topics[0])
