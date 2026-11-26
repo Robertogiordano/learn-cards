@@ -81,6 +81,7 @@ public struct GrammarCourse: Sendable {
         ]),
         chapter(3, "Food and drink", situations: "talking about likes and dislikes, asking when you don't understand, ordering in a café or restaurant", [
             ("Verbs with an accusative object (Verben mit Akkusativobjekt)", "den/einen/keinen, accusative after haben, möchten, essen, trinken, brauchen, kaufen", "🍽️"),
+            ("Personal pronouns in the accusative (Personalpronomen im Akkusativ)", "mich, dich, ihn, sie, es, uns, euch, sie/Sie: Ich mag ihn. Der Kuchen? Ich nehme ihn.", "👉"),
             ("Zero article (Nullartikel)", "No article for uncountable food and drinks, professions, nationalities, plural in general", "🥖"),
             ("Punctuation (Satzzeichen)", "Full stop, question mark, exclamation mark, commas in lists and before aber/denn", "✏️"),
         ]),

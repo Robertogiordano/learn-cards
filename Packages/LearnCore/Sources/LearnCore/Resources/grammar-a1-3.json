@@ -39,6 +39,47 @@
   ]
 },
 {
+  "topic": "Personal pronouns in the accusative (Personalpronomen im Akkusativ)",
+  "title": "mich, dich, ihn", "emoji": "👉", "level": "A1",
+  "summary": "When a person or thing is the object, the pronoun changes: ich → mich, du → dich, er → ihn. sie, es and Sie stay the same.",
+  "cards": [
+    {"title": "When do you need it?",
+     "body": "You don't repeat the noun: **Der Kuchen ist lecker. Ich nehme ihn.** And you talk about people you like or see: **Ich mag dich.** **Siehst du uns?** The pronoun is the **object**, so it goes into the **accusative**.",
+     "examples": [{"german": "Der Salat? Ich nehme **ihn**.", "english": "The salad? I'll have it."},
+                  {"german": "Ich verstehe **Sie** nicht.", "english": "I don't understand you. (polite)"}]},
+    {"title": "The forms",
+     "body": "Five forms change, three stay the same: **sie, es, Sie**.",
+     "table": {"headers": ["nominative", "accusative", "example"],
+               "rows": [["ich", "**mich**", "Er fragt **mich**."], ["du", "**dich**", "Ich liebe **dich**."], ["er", "**ihn**", "Ich kenne **ihn**."],
+                        ["sie", "sie", "Ich sehe **sie**."], ["es", "es", "Ich kaufe **es**."], ["wir", "**uns**", "Besuchst du **uns**?"],
+                        ["ihr", "**euch**", "Ich frage **euch**."], ["sie / Sie", "sie / Sie", "Ich höre **Sie**."]]},
+     "tip": "er → ihn works like der → den: the masculine gets an n."},
+    {"title": "Things, not only people",
+     "body": "The pronoun follows the **article** of the noun: **der** Kaffee → **ihn**, **die** Suppe → **sie**, **das** Brot → **es**, plural → **sie**.",
+     "examples": [{"german": "Wo ist **die Speisekarte**? – Ich habe **sie**.", "english": "Where's the menu? – I have it."},
+                  {"german": "Magst du **den Käse**? – Nein, ich mag **ihn** nicht.", "english": "Do you like the cheese? – No, I don't like it."}]},
+    {"title": "Which verbs?",
+     "body": "The same verbs as the accusative: **haben, mögen, nehmen, kaufen, brauchen, suchen, sehen, kennen, fragen, besuchen, lieben, verstehen, bestellen**.",
+     "examples": [{"german": "Ich besuche **dich** morgen.", "english": "I'll visit you tomorrow."},
+                  {"german": "Brauchst du **mich** heute?", "english": "Do you need me today?"}]},
+    {"title": "Common mistakes",
+     "body": "Not 'Ich mag er': the object is **ihn**. Not 'Ich nehme es' for der Kuchen: masculine thing → **ihn**. And after **sein** no accusative: **Das ist er**, not 'Das ist ihn'.",
+     "examples": [{"german": "Der Kaffee ist kalt. Ich trinke **ihn** nicht.", "english": "The coffee is cold. I'm not drinking it."}]}
+  ],
+  "games": [
+    {"kind": "match", "prompt": "Nominative → accusative",
+     "pairs": [{"left": "ich", "right": "mich"}, {"left": "du", "right": "dich"}, {"left": "er", "right": "ihn"}, {"left": "wir", "right": "uns"}, {"left": "ihr", "right": "euch"}],
+     "explanation": "sie, es and Sie stay the same; the others change."},
+    {"kind": "sort", "prompt": "Ich nehme … : ihn, sie or es?",
+     "pairs": [{"left": "den Tee", "right": "ihn"}, {"left": "die Pizza", "right": "sie"}, {"left": "das Wasser", "right": "es"},
+               {"left": "den Apfelkuchen", "right": "ihn"}, {"left": "die Suppe", "right": "sie"}, {"left": "das Brötchen", "right": "es"}],
+     "explanation": "der → ihn, die → sie, das → es."},
+    {"kind": "choice", "prompt": "Kennst du Thomas? – Ja, ich kenne ___ gut.", "english": "Do you know Thomas? – Yes, I know him well.",
+     "options": ["er", "ihn", "ihm"], "answers": ["ihn"],
+     "explanation": "kennen takes the accusative: er → ihn."}
+  ]
+},
+{
   "topic": "Zero article (Nullartikel)",
   "title": "No article", "emoji": "🥖", "level": "A1",
   "summary": "Sometimes German uses no article at all: for food in general, professions, countries and things you can't count.",
