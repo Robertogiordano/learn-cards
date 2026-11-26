@@ -341,7 +341,16 @@ public enum VerbExtractionPrompt {
         infinitives. Return every verb of the list, once, keeping its infinitive.
 
         For each verb return:
-        - infinitive: as given, e.g. "fahren", "aufstehen", "sich waschen".
+        \(fieldGuide)
+
+        Answer with JSON only, shaped as {"verbs": [ ... ]}.
+        """
+    }
+
+    /// The fields of one verb, shared with the lookup of a single typed verb.
+    static var fieldGuide: String {
+        """
+        - infinitive: the infinitive, e.g. "fahren", "aufstehen", "sich waschen".
         - english: the most common English translation, without "to".
         - forms: the present tense (Präsens) exactly as written after the pronoun, in this order: \
         ich, du, er/sie/es, wir, ihr, sie/Sie. Separable verbs with the prefix at the end \
@@ -351,8 +360,6 @@ public enum VerbExtractionPrompt {
         verbs changing vowel in du/er like fahren or sprechen are "stemChanging").
         - note: in English, at most 8 words on what to watch out for (e.g. "a → ä with du and er"), null if regular.
         - emoji: exactly ONE emoji that evokes the verb.
-
-        Answer with JSON only, shaped as {"verbs": [ ... ]}.
         """
     }
 
@@ -378,6 +385,34 @@ public enum VerbExtractionPrompt {
         let verbs: [String: Any] = ["type": "array", "items": verb]
         let rootProperties: [String: Any] = ["verbs": verbs]
         return ["type": "object", "properties": rootProperties, "required": ["verbs"], "additionalProperties": false]
+    }
+}
+
+/// Fills in a single verb the learner typed (text only, no photo).
+public enum VerbLookupPrompt {
+    public static func system() -> String {
+        """
+        You help an English-speaking learner conjugate German verbs. The learner typed one German \
+        verb, possibly conjugated ("fährst"), with a typo, missing umlauts or wrong capitalization. \
+        Find the verb they mean and describe it as exactly one verb, with its correct infinitive.
+
+        Return:
+        \(VerbExtractionPrompt.fieldGuide)
+
+        Answer with JSON only, shaped as {"verbs": [ ... ]} with exactly one verb.
+        """
+    }
+
+    public static func userInstruction(for verb: String) -> String {
+        "Verb: \(verb)"
+    }
+
+    /// Same shape as the list conjugation, so the same parser reads it.
+    public static var responseSchema: [String: Any] { VerbExtractionPrompt.responseSchema }
+
+    /// The first verb the model returned, or nil when it found none.
+    public static func parse(_ content: String) throws -> VerbEntry? {
+        try VerbExtractionParser.parse(content).first
     }
 }
 

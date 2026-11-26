@@ -28,7 +28,8 @@ enum BackupService {
                                              verbs: verbs.map(\.backup),
                                              activity: ActivityStore.shared.stats,
                                              wordSets: WordSetStore.shared.sets,
-                                             grammarPills: GrammarPillStore.shared.pills))
+                                             grammarPills: GrammarPillStore.shared.pills,
+                                             notes: NoteStore.shared.notes))
     }
 
     static func defaultFilename(date: Date = .now) -> String {
@@ -87,6 +88,9 @@ enum BackupService {
         if let pills = pending.backup.grammarPills {
             GrammarPillStore.shared.merge(pills)
         }
+        if let notes = pending.backup.notes {
+            NoteStore.shared.merge(notes)
+        }
     }
 
     @MainActor
@@ -117,6 +121,7 @@ enum BackupService {
         ActivityStore.shared.replace(with: backup.activity ?? ActivityStats())
         WordSetStore.shared.replace(with: backup.wordSets ?? [])
         GrammarPillStore.shared.replace(with: backup.grammarPills ?? [])
+        NoteStore.shared.replace(with: backup.notes ?? [])
     }
 }
 

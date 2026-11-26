@@ -121,6 +121,46 @@ struct OpenRouterClient {
         return entry
     }
 
+    /// Translation, variants, category and the rest for a phrase typed in German (text only).
+    func lookUpPhrase(_ phrase: String) async throws -> PhraseEntry {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: PhraseLookupPrompt.system(existingCategories: existingCategories),
+            instruction: PhraseLookupPrompt.userInstruction(for: phrase),
+            schemaName: "phrases",
+            schema: PhraseLookupPrompt.responseSchema
+        ))
+        guard let entry = try PhraseLookupPrompt.parse(content, existingCategories: existingCategories) else {
+            throw ClientError.noPhrases
+        }
+        return entry
+    }
+
+    /// Infinitive, translation and present tense for a verb typed in German (text only).
+    func lookUpVerb(_ verb: String) async throws -> VerbEntry {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: VerbLookupPrompt.system(),
+            instruction: VerbLookupPrompt.userInstruction(for: verb),
+            schemaName: "verbs",
+            schema: VerbLookupPrompt.responseSchema
+        ))
+        guard let entry = try VerbLookupPrompt.parse(content) else { throw ClientError.noVerbs }
+        return entry
+    }
+
+    /// A tidier version of the learner's note and the explanation behind it (text only).
+    func improveNote(_ note: StudyNote) async throws -> NoteImprovement {
+        let content = try await extract(jpeg: nil, request: Request(
+            system: NoteImprovePrompt.system(),
+            instruction: NoteImprovePrompt.userInstruction(for: note),
+            schemaName: "note",
+            schema: NoteImprovePrompt.responseSchema,
+            // Correct explanations matter more than speed here.
+            reasoning: ["effort": "low"],
+            temperature: 0.4
+        ))
+        return try NoteImprovePrompt.parse(content)
+    }
+
     /// The parts of a compound noun the vocabulary could not explain (text only).
     func splitCompound(_ word: String) async throws -> [String] {
         let content = try await extract(jpeg: nil, request: Request(

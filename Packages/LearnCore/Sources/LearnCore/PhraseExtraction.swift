@@ -3,10 +3,7 @@ import Foundation
 /// What we ask the vision model for phrases (sentences, idioms, question/answer pairs).
 public enum PhraseExtractionPrompt {
     public static func system(existingCategories: [String]) -> String {
-        let categories = existingCategories.isEmpty
-            ? "The learner has no phrase categories yet."
-            : "The learner's existing phrase categories are: \(existingCategories.joined(separator: ", "))."
-        return """
+        """
         You help an English-speaking learner memorize German sentences and idioms. You receive a \
         photo of a page from a German course: phrase lists, idioms, dialogues or exercises.
 
@@ -20,6 +17,18 @@ public enum PhraseExtractionPrompt {
         form unless the page uses "Sie".
 
         For each phrase return:
+        \(fieldGuide(existingCategories: existingCategories))
+
+        Each sentence once. Answer with JSON only, shaped as {"phrases": [ ... ]}.
+        """
+    }
+
+    /// The fields of one phrase, shared with the lookup of a single typed phrase.
+    static func fieldGuide(existingCategories: [String]) -> String {
+        let categories = existingCategories.isEmpty
+            ? "The learner has no phrase categories yet."
+            : "The learner's existing phrase categories are: \(existingCategories.joined(separator: ", "))."
+        return """
         - german: the complete German sentence.
         - variants: 0 to 3 other German sentences that are also correct answers with the same \
         meaning (e.g. the "Sie" form, another natural word order). No near-duplicates.
@@ -31,8 +40,6 @@ public enum PhraseExtractionPrompt {
         (for example Personal questions, Idioms, At the restaurant, Free time). \(categories) \
         Reuse an existing category, spelled exactly the same, whenever the phrase fits it.
         - emoji: exactly ONE emoji that evokes the sentence.
-
-        Each sentence once. Answer with JSON only, shaped as {"phrases": [ ... ]}.
         """
     }
 
@@ -67,6 +74,35 @@ public enum PhraseExtractionPrompt {
             "required": ["phrases"],
             "additionalProperties": false,
         ]
+    }
+}
+
+/// Fills in a single phrase the learner typed in German (text only, no photo).
+public enum PhraseLookupPrompt {
+    public static func system(existingCategories: [String]) -> String {
+        """
+        You help an English-speaking learner memorize German sentences and idioms. The learner typed \
+        one German sentence, question or idiom, possibly with typos, missing umlauts, wrong \
+        capitalization or no final punctuation. Correct it, keeping its meaning and wording as close \
+        as possible, and describe it as exactly one phrase.
+
+        Return:
+        \(PhraseExtractionPrompt.fieldGuide(existingCategories: existingCategories))
+
+        Answer with JSON only, shaped as {"phrases": [ ... ]} with exactly one phrase.
+        """
+    }
+
+    public static func userInstruction(for phrase: String) -> String {
+        "Phrase: \(phrase)"
+    }
+
+    /// Same shape as the photo extraction, so the same parser reads it.
+    public static var responseSchema: [String: Any] { PhraseExtractionPrompt.responseSchema }
+
+    /// The first phrase the model returned, or nil when it found none.
+    public static func parse(_ content: String, existingCategories: [String] = []) throws -> PhraseEntry? {
+        try PhraseExtractionParser.parse(content, existingCategories: existingCategories).first
     }
 }
 

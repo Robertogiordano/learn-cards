@@ -16,9 +16,25 @@ enum VocabularySort: String, CaseIterable, Identifiable {
     }
 }
 
-/// The Vocabulary tab: words, phrases or verbs, with one search across all of them.
+/// What the Vocabulary tab shows; raw values match `ImportKind`, so the saved choice carries over.
+enum VocabularySection: String, CaseIterable, Identifiable {
+    case words, phrases, verbs, notes
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .words: return "Words"
+        case .phrases: return "Phrases"
+        case .verbs: return "Verbs"
+        case .notes: return "Notes"
+        }
+    }
+}
+
+/// The Vocabulary tab: words, phrases, verbs or notes, with one search across all of them.
 struct VocabularyView: View {
-    @AppStorage(SettingsKey.vocabularyKind) private var kindRaw = ImportKind.words.rawValue
+    @AppStorage(SettingsKey.vocabularyKind) private var kindRaw = VocabularySection.words.rawValue
     @State private var search = ""
 
     private var isSearching: Bool { !search.trimmed.isEmpty }
@@ -29,27 +45,34 @@ struct VocabularyView: View {
                 if isSearching {
                     VocabularySearchResults(query: search)
                 } else {
-                    switch ImportKind(rawValue: kindRaw) ?? .words {
+                    switch VocabularySection(rawValue: kindRaw) ?? .words {
                     case .words: WordsListView()
                     case .phrases: PhrasesListView()
                     case .verbs: VerbsListView()
+                    case .notes: NotesListView()
                     }
                 }
             }
+            // Four sections do not fit between the toolbar buttons: the picker gets its own row.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !isSearching {
+                    Picker("Show", selection: $kindRaw) {
+                        ForEach(VocabularySection.allCases) { section in
+                            Text(section.title).tag(section.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                }
+            }
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "Search words, phrases and verbs")
+            .searchable(text: $search, prompt: "Search words, phrases, verbs and notes")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if isSearching {
                         Text("Search").font(.headline)
-                    } else {
-                        Picker("Show", selection: $kindRaw) {
-                            ForEach(ImportKind.allCases) { kind in
-                                Text(kind.title).tag(kind.rawValue)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 260)
                     }
                 }
             }
@@ -57,7 +80,7 @@ struct VocabularyView: View {
     }
 }
 
-/// Matches from words, phrases and verbs together, one section each.
+/// Matches from words, phrases, verbs and notes together, one section each.
 struct VocabularySearchResults: View {
     let query: String
 
@@ -68,6 +91,8 @@ struct VocabularySearchResults: View {
     @State private var editingWord: Word?
     @State private var editingPhrase: Phrase?
     @State private var editingVerb: Verb?
+    @State private var editingNote: StudyNote?
+    @ObservedObject private var noteStore = NoteStore.shared
 
     var body: some View {
         let foundWords = words.filter { word in
@@ -80,6 +105,9 @@ struct VocabularySearchResults: View {
         }
         let foundVerbs = verbs.filter { verb in
             VocabularySearch.matches(query, in: [verb.infinitive, verb.english, verb.group.label] + verb.forms)
+        }
+        let foundNotes = noteStore.notes.filter { note in
+            VocabularySearch.matches(query, in: [note.title, note.text])
         }
 
         return List {
@@ -122,9 +150,21 @@ struct VocabularySearchResults: View {
                     }
                 }
             }
+            if !foundNotes.isEmpty {
+                Section("Notes · \(foundNotes.count)") {
+                    ForEach(foundNotes) { note in
+                        Button { editingNote = note } label: {
+                            NoteRow(note: note)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
         .overlay {
-            if foundWords.isEmpty && foundPhrases.isEmpty && foundVerbs.isEmpty {
+            if foundWords.isEmpty && foundPhrases.isEmpty && foundVerbs.isEmpty && foundNotes.isEmpty {
                 ContentUnavailableView.search(text: query)
             }
         }
@@ -145,6 +185,9 @@ struct VocabularySearchResults: View {
                 verb.update(from: updated)
                 try? context.save()
             }
+        }
+        .sheet(item: $editingNote) { note in
+            NoteEditView(note: note, isNew: false)
         }
     }
 }

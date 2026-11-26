@@ -12,6 +12,9 @@ struct PhraseEditView: View {
     @State private var variantsText: String
     @State private var responseText: String
     @State private var noteText: String
+    @State private var isFilling = false
+    @State private var fillMessage: String?
+    @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
 
     init(title: String, entry: PhraseEntry, categories: [String] = [], onSave: @escaping (PhraseEntry) -> Void) {
         self.title = title
@@ -28,9 +31,15 @@ struct PhraseEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("German") {
+                Section {
                     TextField("Phrase", text: $draft.german, axis: .vertical)
                         .autocorrectionDisabled()
+                    AIFillButton(isFilling: isFilling, message: fillMessage, action: fillWithAI)
+                        .disabled(draft.german.trimmed.isEmpty || isFilling)
+                } header: {
+                    Text("German")
+                } footer: {
+                    Text("Type the German phrase, then “Fill in with AI” corrects it and adds translation, other forms, note and category. Check them before saving.")
                 }
                 Section {
                     TextField("One per line", text: $variantsText, axis: .vertical)
@@ -86,6 +95,37 @@ struct PhraseEditView: View {
                     Button("Save", action: save)
                         .disabled(!isValid)
                 }
+            }
+        }
+    }
+
+    /// Asks the model for everything else about the typed phrase and fills the form.
+    private func fillWithAI() {
+        let phrase = draft.german.trimmed
+        guard !phrase.isEmpty, !isFilling else { return }
+        guard let key = Secrets.openRouterKey else {
+            fillMessage = "Add an OpenRouter API key in Settings to fill in phrases with AI."
+            return
+        }
+        let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
+        isFilling = true
+        fillMessage = nil
+        Task { @MainActor in
+            defer { isFilling = false }
+            do {
+                var client = OpenRouterClient(apiKey: key, model: modelID)
+                client.existingCategories = categories
+                let found = try await client.lookUpPhrase(phrase)
+                draft.german = found.german
+                draft.english = found.english
+                draft.kind = found.kind
+                draft.category = found.category
+                draft.emoji = found.emoji
+                variantsText = found.variants.joined(separator: "\n")
+                responseText = found.response ?? ""
+                noteText = found.note ?? ""
+            } catch {
+                fillMessage = error.localizedDescription
             }
         }
     }

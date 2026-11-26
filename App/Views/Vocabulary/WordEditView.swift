@@ -50,22 +50,8 @@ struct WordEditView: View {
                             // A new word: Return fills the rest, like the button.
                             if englishList.isEmpty, !draft.german.trimmed.isEmpty { fillWithAI() }
                         }
-                    Button(action: fillWithAI) {
-                        HStack {
-                            Label("Fill in with AI", systemImage: "sparkles")
-                            if isFilling {
-                                Spacer()
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(draft.german.trimmed.isEmpty || isFilling)
-                    if let fillMessage {
-                        Text(fillMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    AIFillButton(isFilling: isFilling, message: fillMessage, action: fillWithAI)
+                        .disabled(draft.german.trimmed.isEmpty || isFilling)
                     Picker("Article", selection: $draft.article) {
                         Text("—").tag(Article?.none)
                         ForEach(Article.allCases, id: \.self) { article in
@@ -319,5 +305,31 @@ struct WordEditView: View {
             : category
         onSave(entry)
         dismiss()
+    }
+}
+
+/// “Fill in with AI” with its spinner and, below, the last error.
+struct AIFillButton: View {
+    var title = "Fill in with AI"
+    let isFilling: Bool
+    let message: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Label(title, systemImage: "sparkles")
+                if isFilling {
+                    Spacer()
+                    ProgressView()
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        if let message {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
     }
 }

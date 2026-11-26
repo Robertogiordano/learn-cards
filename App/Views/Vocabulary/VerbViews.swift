@@ -68,6 +68,9 @@ struct VerbEditView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: VerbEntry
     @State private var noteText: String
+    @State private var isFilling = false
+    @State private var fillMessage: String?
+    @AppStorage(SettingsKey.model) private var model = OpenRouterModels.defaultModel
 
     init(title: String, entry: VerbEntry, onSave: @escaping (VerbEntry) -> Void) {
         self.title = title
@@ -86,12 +89,23 @@ struct VerbEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Verb") {
+                Section {
                     TextField("Infinitive, e.g. fahren", text: $draft.infinitive)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit {
+                            // A new verb: Return fills the rest, like the button.
+                            if draft.english.trimmed.isEmpty, !draft.infinitive.trimmed.isEmpty { fillWithAI() }
+                        }
+                    AIFillButton(isFilling: isFilling, message: fillMessage, action: fillWithAI)
+                        .disabled(draft.infinitive.trimmed.isEmpty || isFilling)
                     TextField("English", text: $draft.english)
                         .textInputAutocapitalization(.never)
+                } header: {
+                    Text("Verb")
+                } footer: {
+                    Text("Type the verb, then “Fill in with AI” adds translation, present tense, group, note and emoji. Check them before saving.")
                 }
                 Section {
                     ForEach(Person.allCases, id: \.self) { person in
@@ -127,6 +141,33 @@ struct VerbEditView: View {
                     Button("Save", action: save)
                         .disabled(!isValid)
                 }
+            }
+        }
+    }
+
+    /// Asks the model for the translation and the present tense of the typed verb.
+    private func fillWithAI() {
+        let verb = draft.infinitive.trimmed
+        guard !verb.isEmpty, !isFilling else { return }
+        guard let key = Secrets.openRouterKey else {
+            fillMessage = "Add an OpenRouter API key in Settings to fill in verbs with AI."
+            return
+        }
+        let modelID = model.trimmed.isEmpty ? OpenRouterModels.defaultModel : model.trimmed
+        isFilling = true
+        fillMessage = nil
+        Task { @MainActor in
+            defer { isFilling = false }
+            do {
+                let found = try await OpenRouterClient(apiKey: key, model: modelID).lookUpVerb(verb)
+                draft.infinitive = found.infinitive
+                draft.english = found.english
+                draft.forms = found.forms
+                draft.group = found.group
+                draft.emoji = found.emoji
+                noteText = found.note ?? ""
+            } catch {
+                fillMessage = error.localizedDescription
             }
         }
     }
