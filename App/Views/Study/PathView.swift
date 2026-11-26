@@ -105,6 +105,11 @@ struct PathView: View {
                     NumbersRow()
                 }
                 NavigationLink {
+                    TimeView()
+                } label: {
+                    TimeRow()
+                }
+                NavigationLink {
                     PhrasesView()
                 } label: {
                     PhrasesRow()
